@@ -34,12 +34,31 @@ h1, h2 { font-family: Georgia, serif; }
 .placeholder-card p:not(.eyebrow) { max-width: 520px; margin: 18px 0; }
 .placeholder-card a { color: #875237; font-size: 13px; }
 .site-footer { display: flex; justify-content: space-between; padding: 20px 0 24px; border-top: 1px solid #e8e0d6; color: #958d82; font-size: 11px; }
+.order-page h1 { margin: 0 0 25px; font: 500 clamp(38px, 5vw, 54px)/1.1 Georgia, serif; letter-spacing: -.03em; }
+.order-layout { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(250px, .8fr); gap: 22px; align-items: start; }
+.order-card { padding: 26px; border: 1px solid #e7dfd5; border-radius: 8px; background: #fffdfa; }
+.order-card h2 { margin: 0 0 18px; font-size: 20px; font-weight: 500; }
+.cart-line { display: grid; grid-template-columns: 78px minmax(120px, 1fr) auto auto auto; gap: 16px; align-items: center; padding: 17px 0; border-bottom: 1px solid #eee8e0; }
+.cart-line:first-child { padding-top: 0; }.cart-line:last-child { padding-bottom: 0; border-bottom: 0; }
+.cart-line img, .product-placeholder { width: 78px; height: 88px; object-fit: cover; border-radius: 5px; background: #eee6db; }
+.product-placeholder { display: grid; place-items: center; color: #a76743; font: 30px Georgia, serif; }
+.cart-product h2 { margin: 0 0 5px; font-size: 16px; }.cart-product p, .cart-product span, .cart-product small { display: block; margin: 3px 0; color: #797166; font-size: 12px; }
+.quantity-control { display: flex; align-items: center; gap: 10px; }.quantity-control button, .admin-actions button { min-width: 30px; min-height: 30px; border: 1px solid #ded4c7; border-radius: 4px; background: #fffdfa; color: #4c4338; }.quantity-control button:disabled { opacity: .4; }
+.text-button { border: 0; background: transparent; color: #a1503f; font-size: 12px; text-decoration: underline; }
+.summary-card > p { display: flex; justify-content: space-between; gap: 15px; color: #70695f; font-size: 13px; }.summary-card .summary-total { padding-top: 14px; border-top: 1px solid #e8e0d6; color: #28251f; font-size: 15px; }
+.full-button { width: 100%; margin: 8px 0 12px; }.summary-card small, .checkout-form small { color: #898176; font-size: 11px; line-height: 1.6; }
+.checkout-form { display: grid; gap: 16px; }.checkout-form label { display: grid; gap: 7px; color: #524b42; font-size: 13px; font-weight: 600; }.checkout-form input, .checkout-form select { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid #ded4c7; border-radius: 4px; background: #fff; color: #28251f; font: inherit; font-weight: 400; }.checkout-form button { justify-self: start; }
+.notice { padding: 12px 15px; border-radius: 5px; font-size: 13px; }.notice-error { background: #fff0ed; color: #a23d35; }
+.order-row { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(120px, auto) auto auto; gap: 20px; align-items: center; padding: 17px 0; border-bottom: 1px solid #eee8e0; }.order-row:first-child { padding-top: 0; }.order-row:last-child { padding-bottom: 0; border-bottom: 0; }.order-row p { margin: 5px 0 0; color: #777066; font-size: 12px; }.order-row a { color: #875237; font-size: 12px; }
+.admin-actions { display: flex; gap: 6px; flex-wrap: wrap; }.admin-actions button { padding: 5px 8px; font-size: 11px; }.admin-actions .danger-button { border-color: #e6c5bf; color: #a23d35; }
+.success-card { max-width: 740px; margin: 30px auto; padding: 52px; }.success-card h1 { max-width: 550px; }.success-card p { color: #70695f; }.success-card .button { margin-top: 12px; }.history-list { margin: 22px 0; padding: 5px 15px; background: #f8f5f0; }.history-list p { display: flex; justify-content: space-between; gap: 12px; }
 
 @media (max-width: 700px) {
   .app-frame { width: min(100% - 36px, 560px); }
   .site-header { height: 68px; }
   .header-note { display: none; }
   .main-nav { gap: 17px; }
+  .main-nav a { font-size: 11px; }
   .page-shell { padding: 30px 0 38px; }
   .hero-card { min-height: 370px; padding: 44px 28px; }
   .hero-card::after { width: 250px; height: 250px; right: -125px; opacity: .42; }
@@ -50,4 +69,5 @@ h1, h2 { font-family: Georgia, serif; }
   .starter-grid article span { grid-row: span 2; padding-top: 5px; }
   .starter-grid h2 { margin: 0 0 4px; font-size: 19px; }
   .placeholder-card { padding: 42px 28px; }
+  .order-layout { grid-template-columns: 1fr; }.order-card { padding: 20px; }.cart-line { grid-template-columns: 58px minmax(100px,1fr) auto; gap: 11px; }.cart-line img, .product-placeholder { width: 58px; height: 68px; }.cart-line > strong { grid-column: 2; }.cart-line > .text-button { grid-column: 3; grid-row: 2; }.quantity-control { grid-column: 3; grid-row: 1; }.order-row { grid-template-columns: 1fr auto; gap: 10px; }.order-row > a, .order-row > .text-button, .admin-actions { grid-column: 1 / -1; }.success-card { padding: 34px 24px; }
 }
