@@ -4,7 +4,7 @@ Five-member course project. The agreed starting stack is Java 17 / Spring Boot 3
 
 ## Requirements
 
-- JDK 17 (Spring Boot 3.5 needs Java 17 or newer; make sure `JAVA_HOME` points to JDK 17, not Java 8).
+- JDK 17 or newer (Java 21 is supported; make sure `JAVA_HOME` points to the intended JDK, not Java 8).
 - Node.js 22.12 or newer in the 22.x line, with npm.
 - Docker Desktop / Docker Engine with Compose, for the local PostgreSQL container.
 
@@ -13,7 +13,7 @@ Five-member course project. The agreed starting stack is Java 17 / Spring Boot 3
 From the repository root (macOS):
 
 1. Start PostgreSQL: `docker compose up -d database`
-2. In **Terminal 1**, select JDK 17 and start the API:
+2. In **Terminal 1**, select JDK 17 or newer (JDK 21 is fine) and start the API:
 
    ```sh
    export JAVA_HOME="$(/usr/libexec/java_home -v 17)"
@@ -33,7 +33,7 @@ From the repository root (macOS):
    Run `npm install` once per checkout; afterwards use `npm run dev`.
 4. Open `http://localhost:5173` and select **Check backend**. The API health endpoint is `http://localhost:8080/api/health`.
 
-The frontend development server proxies `/api` requests to port 8080. Flyway creates the initial schema when the backend starts. The database container is configured for local development only and binds its port to localhost; do not reuse that authentication configuration in a deployed environment. If `java -version` shows Java 8, set `JAVA_HOME` to JDK 17 as above before running the Maven Wrapper.
+The frontend development server proxies `/api` requests to port 8080. Flyway creates the initial schema when the backend starts. The database container is configured for local development only and binds its port to localhost; do not reuse that authentication configuration in a deployed environment. Set `JAVA_HOME` to any installed JDK 17 or newer before running the Maven Wrapper.
 
 ## Current scaffold boundary
 
