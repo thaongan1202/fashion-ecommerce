@@ -19,10 +19,8 @@ public class ProductVariant {
     private String color;  // nullable (BR-PROD-04)
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal price;
-    @Column(nullable = false)
-    private int stock;
-    @Column(nullable = false)
-    private boolean active = true;
+    @Column(name = "stock_qty", nullable = false)
+    private int stockQty;
 
     public Long getId() { return id; }
     public Product getProduct() { return product; }
@@ -35,8 +33,6 @@ public class ProductVariant {
     public void setColor(String color) { this.color = color; }
     public BigDecimal getPrice() { return price; }
     public void setPrice(BigDecimal price) { this.price = price; }
-    public int getStock() { return stock; }
-    public void setStock(int stock) { this.stock = stock; }
-    public boolean isActive() { return active; }
-    public void setActive(boolean active) { this.active = active; }
+    public int getStockQty() { return stockQty; }
+    public void setStockQty(int stockQty) { this.stockQty = stockQty; }
 }

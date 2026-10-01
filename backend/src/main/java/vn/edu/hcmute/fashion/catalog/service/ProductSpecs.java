@@ -12,6 +12,11 @@ import org.springframework.data.jpa.domain.Specification;
 public final class ProductSpecs {
     private ProductSpecs() {}
 
+    /** Admin mặc định không thấy sản phẩm đã xóa mềm. */
+    public static Specification<Product> notDeleted() {
+        return (root, query, cb) -> cb.notEqual(root.get("status"), ProductStatus.DELETED);
+    }
+
     public static Specification<Product> filter(String keyword, Long categoryId, Long brandId,
                                                 BigDecimal minPrice, BigDecimal maxPrice, ProductStatus status) {
         return (root, query, cb) -> {
@@ -26,7 +31,6 @@ public final class ProductSpecs {
                 Root<ProductVariant> v = sq.from(ProductVariant.class);
                 List<Predicate> vp = new ArrayList<>();
                 vp.add(cb.equal(v.get("product"), root));
-                vp.add(cb.isTrue(v.get("active")));
                 if (minPrice != null) vp.add(cb.greaterThanOrEqualTo(v.<BigDecimal>get("price"), minPrice));
                 if (maxPrice != null) vp.add(cb.lessThanOrEqualTo(v.<BigDecimal>get("price"), maxPrice));
                 sq.select(v.<Long>get("id")).where(vp.toArray(new Predicate[0]));

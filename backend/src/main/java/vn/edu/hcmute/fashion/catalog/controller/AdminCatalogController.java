@@ -11,9 +11,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-/** Mọi đường dẫn /admin/** do SecurityConfig (Member 1) yêu cầu role ADMIN. */
+/** Mọi đường dẫn /api/admin/** do SecurityConfig (Member 1) yêu cầu role ADMIN. */
 @RestController
-@RequestMapping("/admin")
+@RequestMapping("/api/admin")
 public class AdminCatalogController {
     private final CatalogService catalog;
     private final ProductService products;
@@ -75,9 +75,9 @@ public class AdminCatalogController {
         return products.update(id, r);
     }
 
-    /** Soft-delete: đặt status = HIDDEN. Muốn hiện lại thì PUT với status = ACTIVE. */
+    /** Soft-delete: status = DELETED. Ẩn tạm / hiện lại: PUT với status = INACTIVE / ACTIVE. */
     @DeleteMapping("/products/{id}") @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void hideProduct(@PathVariable Long id) { products.hide(id); }
+    public void deleteProduct(@PathVariable Long id) { products.softDelete(id); }
 
     // ----- Variant -----
     @PostMapping("/products/{productId}/variants") @ResponseStatus(HttpStatus.CREATED)
@@ -91,7 +91,7 @@ public class AdminCatalogController {
     }
 
     @DeleteMapping("/variants/{id}") @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deactivateVariant(@PathVariable Long id) { products.deactivateVariant(id); }
+    public void deleteVariant(@PathVariable Long id) { products.deleteVariant(id); }
 
     // ----- Image upload -----
     @PostMapping(value = "/products/{productId}/images", consumes = "multipart/form-data")

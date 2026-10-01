@@ -1,7 +1,7 @@
 package vn.edu.hcmute.fashion.catalog.entity;
 
 import jakarta.persistence.*;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,15 +27,15 @@ public class Product {
     @OrderBy("id")
     private List<ProductVariant> variants = new ArrayList<>();
     @OneToMany(mappedBy = "product")
-    @OrderBy("sortOrder, id")
+    @OrderBy("id")
     private List<ProductImage> images = new ArrayList<>();
     @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
     @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
+    private Instant updatedAt;
 
-    @PrePersist void onCreate() { createdAt = updatedAt = LocalDateTime.now(); }
-    @PreUpdate void onUpdate() { updatedAt = LocalDateTime.now(); }
+    @PrePersist void onCreate() { createdAt = updatedAt = Instant.now(); }
+    @PreUpdate void onUpdate() { updatedAt = Instant.now(); }
 
     public Long getId() { return id; }
     public String getName() { return name; }

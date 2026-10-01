@@ -26,12 +26,12 @@ public final class CatalogDtos {
             @Size(max = 50) String size,
             @Size(max = 50) String color,
             @NotNull(message = "Thiếu giá") @DecimalMin(value = "0.0", message = "Giá phải >= 0") BigDecimal price,
-            @NotNull(message = "Thiếu tồn kho") @Min(value = 0, message = "Tồn kho phải >= 0") Integer stock) {}
+            @NotNull(message = "Thiếu tồn kho (stockQty)") @Min(value = 0, message = "Tồn kho phải >= 0") Integer stockQty) {}
 
     public record VariantResponse(Long id, String sku, String size, String color,
-                                  BigDecimal price, int stock, boolean active) {}
+                                  BigDecimal price, int stockQty) {}
 
-    public record ImageResponse(Long id, String url, int sortOrder) {}
+    public record ImageResponse(Long id, String imageUrl) {}
 
     public record ProductResponse(Long id, String name, String description, ProductStatus status,
                                   NamedResponse category, NamedResponse brand, BigDecimal minPrice,

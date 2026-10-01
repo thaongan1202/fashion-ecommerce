@@ -1,3 +1,4 @@
 package vn.edu.hcmute.fashion.catalog.entity;
 
-public enum ProductStatus { ACTIVE, HIDDEN }
+/** Khớp V1: ACTIVE (hiện), INACTIVE (ẩn tạm), DELETED (xóa mềm). */
+public enum ProductStatus { ACTIVE, INACTIVE, DELETED }

@@ -1,8 +1,6 @@
 package vn.edu.hcmute.fashion.catalog.service;
 
 import vn.edu.hcmute.fashion.catalog.dto.CatalogDtos.*;
-import com.team.shop.catalog.entity.*;
-import com.team.shop.catalog.repository.*;
 import vn.edu.hcmute.fashion.catalog.entity.*;
 import vn.edu.hcmute.fashion.catalog.repository.*;
 import vn.edu.hcmute.fashion.common.ApiException;
@@ -38,41 +36,42 @@ public class ProductService {
                                                     BigDecimal minPrice, BigDecimal maxPrice, int page, int size) {
         var spec = ProductSpecs.filter(keyword, categoryId, brandId, minPrice, maxPrice, ProductStatus.ACTIVE);
         var result = products.findAll(spec, pageable(page, size));
-        return PageResponse.of(result.map(p -> toResponse(p, false)));
+        return PageResponse.of(result.map(p -> toResponse(p)));
     }
 
     @Transactional(readOnly = true)
     public ProductResponse getPublic(Long id) {
         Product p = find(id);
         if (p.getStatus() != ProductStatus.ACTIVE) throw ApiException.notFound("Sản phẩm không tồn tại");
-        return toResponse(p, false);
+        return toResponse(p);
     }
 
     // ================= Admin =================
     @Transactional(readOnly = true)
     public PageResponse<ProductResponse> listAdmin(String keyword, Long categoryId, Long brandId,
                                                    ProductStatus status, int page, int size) {
-        var spec = ProductSpecs.filter(keyword, categoryId, brandId, null, null, status);
-        return PageResponse.of(products.findAll(spec, pageable(page, size)).map(p -> toResponse(p, true)));
+        var spec = ProductSpecs.filter(keyword, categoryId, brandId, null, null, status)
+                .and(status == null ? ProductSpecs.notDeleted() : null);
+        return PageResponse.of(products.findAll(spec, pageable(page, size)).map(p -> toResponse(p)));
     }
 
     @Transactional(readOnly = true)
-    public ProductResponse getAdmin(Long id) { return toResponse(find(id), true); }
+    public ProductResponse getAdmin(Long id) { return toResponse(find(id)); }
 
     public ProductResponse create(ProductRequest r) {
         Product p = new Product();
         apply(p, r);
-        return toResponse(products.save(p), true);
+        return toResponse(products.save(p));
     }
 
     public ProductResponse update(Long id, ProductRequest r) {
         Product p = find(id);
         apply(p, r);
-        return toResponse(p, true);
+        return toResponse(p);
     }
 
-    /** Soft-delete: chỉ chuyển sang HIDDEN để giữ lịch sử đơn hàng/review. */
-    public void hide(Long id) { find(id).setStatus(ProductStatus.HIDDEN); }
+    /** Soft-delete: status = DELETED để giữ lịch sử đơn hàng/review. Ẩn tạm dùng PUT với status = INACTIVE. */
+    public void softDelete(Long id) { find(id).setStatus(ProductStatus.DELETED); }
 
     // ---- Variant ----
     public VariantResponse addVariant(Long productId, VariantRequest r) {
@@ -93,8 +92,16 @@ public class ProductService {
         return toVariant(v);
     }
 
-    /** Ẩn variant (active=false) thay vì xóa cứng, vì đơn hàng có thể đã tham chiếu. */
-    public void deactivateVariant(Long id) { findVariant(id).setActive(false); }
+    /** Xóa variant; nếu đã bị giỏ/đơn hàng tham chiếu thì DB từ chối (FK) và trả 409. */
+    public void deleteVariant(Long id) {
+        ProductVariant v = findVariant(id);
+        try {
+            variants.delete(v);
+            variants.flush();
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            throw ApiException.conflict("Không thể xóa variant đã phát sinh trong giỏ hàng/đơn hàng");
+        }
+    }
 
     // ---- Image ----
     public ImageResponse addImage(Long productId, MultipartFile file) {
@@ -102,14 +109,13 @@ public class ProductService {
         String url = storage.store(file);
         ProductImage img = new ProductImage();
         img.setProduct(p);
-        img.setUrl(url);
-        img.setSortOrder(p.getImages().size());
+        img.setImageUrl(url);
         return toImage(images.save(img));
     }
 
     public void deleteImage(Long id) {
         ProductImage img = images.findById(id).orElseThrow(() -> ApiException.notFound("Ảnh không tồn tại"));
-        storage.delete(img.getUrl());
+        storage.delete(img.getImageUrl());
         images.delete(img);
     }
 
@@ -141,16 +147,14 @@ public class ProductService {
         v.setSize(blankToNull(r.size()));
         v.setColor(blankToNull(r.color()));
         v.setPrice(r.price());
-        v.setStock(r.stock());
-        v.setActive(true);
+        v.setStockQty(r.stockQty());
     }
 
     private String blankToNull(String s) { return s == null || s.isBlank() ? null : s.trim(); }
 
-    private ProductResponse toResponse(Product p, boolean admin) {
-        List<ProductVariant> vs = p.getVariants().stream().filter(v -> admin || v.isActive()).toList();
-        BigDecimal min = vs.stream().filter(ProductVariant::isActive).map(ProductVariant::getPrice)
-                .min(Comparator.naturalOrder()).orElse(null);
+    private ProductResponse toResponse(Product p) {
+        List<ProductVariant> vs = p.getVariants();
+        BigDecimal min = vs.stream().map(ProductVariant::getPrice).min(Comparator.naturalOrder()).orElse(null);
         Category c = p.getCategory();
         Brand b = p.getBrand();
         return new ProductResponse(p.getId(), p.getName(), p.getDescription(), p.getStatus(),
@@ -160,8 +164,8 @@ public class ProductService {
     }
 
     private VariantResponse toVariant(ProductVariant v) {
-        return new VariantResponse(v.getId(), v.getSku(), v.getSize(), v.getColor(), v.getPrice(), v.getStock(), v.isActive());
+        return new VariantResponse(v.getId(), v.getSku(), v.getSize(), v.getColor(), v.getPrice(), v.getStockQty());
     }
 
-    private ImageResponse toImage(ProductImage i) { return new ImageResponse(i.getId(), i.getUrl(), i.getSortOrder()); }
+    private ImageResponse toImage(ProductImage i) { return new ImageResponse(i.getId(), i.getImageUrl()); }
 }
