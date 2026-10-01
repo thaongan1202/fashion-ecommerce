@@ -54,9 +54,9 @@ Phạm vi: dựng skeleton và đóng băng các hợp đồng để năm thành
 - Product status: `ACTIVE`, `INACTIVE`, `DELETED`; Variant size/color nullable; mọi Product cần ít nhất một Variant (kiểm tra ở service/admin flow).
 - Order status: `PENDING`, `PROCESSING`, `SHIPPING`, `DELIVERED`, `CANCELLED`; COD là payment method hiện thực duy nhất.
 - Voucher thêm `is_active`, vì yêu cầu Admin phải tắt mã nhưng bảng blueprint chưa có field trạng thái. Mã voucher unique. Admin tắt thay vì xóa cứng voucher đã được dùng.
-- Review status: `PENDING`, `APPROVED`, `HIDDEN`; review mới chờ duyệt. Đây là lựa chọn cần nhóm xác nhận vì blueprint để moderation là SHOULD và chưa chốt visibility mặc định.
+- Review status: `PENDING`, `APPROVED`, `HIDDEN`; valid reviews are automatically `APPROVED` after purchase eligibility and payload validation.
 - Ràng buộc stock/rating/quantity, SKU unique, review unique user-product, một Cart/user, tối đa một default address/user, FK restrict/cascade và index truy vấn phổ biến được khai báo trong V1 migration.
-- User bị khóa không thể đăng nhập; ảnh upload lưu local trong giai đoạn demo và database lưu URL. Chốt kích thước/loại file với Member 2.
+- Review images are stored locally; the database stores the URL. Accepted formats are JPEG, PNG, and WebP, with a 5 MB limit.
 
 ## Handoff cần từng owner xác nhận
 
