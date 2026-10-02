@@ -2,6 +2,7 @@ package vn.edu.hcmute.fashion.auth;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Locale;
 
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
@@ -33,7 +34,7 @@ public class JwtTokenService {
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(TOKEN_LIFETIME_SECONDS))
                 .subject(user.getId().toString())
-                .claim("email", user.getEmail())
+                .claim("email", user.getEmail().trim().toLowerCase(Locale.ROOT))
                 .claim("name", user.getFullName())
                 .claim("role", user.getRole())
                 .build();

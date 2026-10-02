@@ -23,9 +23,6 @@ public class PendingRegistration {
     @Column(nullable = false, length = 10)
     private String phone;
 
-    @Column(name = "address_line", nullable = false, length = 500)
-    private String addressLine;
-
     @Column(nullable = false, length = 254)
     private String email;
 
@@ -49,8 +46,6 @@ public class PendingRegistration {
     public void setFullName(String fullName) { this.fullName = fullName; }
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }
-    public String getAddressLine() { return addressLine; }
-    public void setAddressLine(String addressLine) { this.addressLine = addressLine; }
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
     public String getPasswordHash() { return passwordHash; }

@@ -47,4 +47,19 @@ public class Address {
     public String getPhone() { return phone; }
     public String getAddressLine() { return addressLine; }
     public boolean isDefaultAddress() { return defaultAddress; }
+    public void setRecipientName(String recipientName) {
+        this.recipientName = recipientName;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
+    public void setAddressLine(String addressLine) {
+        this.addressLine = addressLine;
+    }
+
+    public void setDefaultAddress(boolean defaultAddress) {
+        this.defaultAddress = defaultAddress;
+    }
 }

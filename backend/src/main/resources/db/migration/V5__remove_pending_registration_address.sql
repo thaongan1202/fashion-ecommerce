@@ -1,0 +1,2 @@
+ALTER TABLE pending_registrations
+DROP COLUMN address_line;

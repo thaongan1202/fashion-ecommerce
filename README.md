@@ -8,49 +8,65 @@ Five-member course project. The agreed starting stack is Java 17 / Spring Boot 3
 - Node.js 22.12 or newer in the 22.x line, with npm.
 - Docker Desktop / Docker Engine with Compose, for the local PostgreSQL container.
 
-## Start locally
+## Start locally (Windows PowerShell)
 
-From the repository root (macOS):
+Run these commands from the repository root. Docker Compose starts the local database on host port `5433`.
 
-1. Start PostgreSQL: `docker compose up -d database`
-2. In **Terminal 1**, select JDK 17 and start the API:
+1. Start PostgreSQL:
 
-   ```sh
-   export JAVA_HOME="$(/usr/libexec/java_home -v 17)"
+   ```powershell
+   docker compose up -d database
+   ```
+
+2. In **Terminal 1**, go to the backend folder and configure its local environment:
+
+   ```powershell
    cd backend
-   ./mvnw spring-boot:run
+   $env:DATABASE_URL = "jdbc:postgresql://localhost:5433/fashion_ecommerce"
+
+   $bytes = New-Object byte[] 32
+   $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+   $rng.GetBytes($bytes)
+   $env:JWT_SECRET = [Convert]::ToBase64String($bytes)
+   $rng.Dispose()
+
+   $env:MAIL_USERNAME = "sender@gmail.com"
+   $secureMailPassword = Read-Host "Google App Password" -AsSecureString
+   $env:MAIL_PASSWORD = [System.Net.NetworkCredential]::new("", $secureMailPassword).Password.Replace(" ", "")
+
+   .\mvnw.cmd spring-boot:run
    ```
 
-3. In **Terminal 2**, select Node 22 and start the frontend:
+   Keep this terminal open while using the app. These environment variables apply only to this PowerShell session. Generate a new `JWT_SECRET` for local development; changing it invalidates tokens created with the previous secret.
 
-   ```sh
+3. In **Terminal 2**, start the frontend:
+
+   ```powershell
    cd frontend
-   nvm use
-   npm install
-   npm run dev
+   npm.cmd install
+   npm.cmd run dev
    ```
 
-   Run `npm install` once per checkout; afterwards use `npm run dev`.
-4. Open `http://localhost:5173` and select **Check backend**. The API health endpoint is `http://localhost:8080/api/health`.
+   Run `npm.cmd install` once per checkout; afterwards use `npm.cmd run dev`.
+4. Open the URL printed by Vite, usually `http://localhost:5173`. The API health endpoint is `http://localhost:8080/api/health`.
 
-## Registration email OTP
+### Configure Gmail for registration OTP
 
-Registration sends a six-digit OTP through Gmail SMTP. Configure the sender mailbox in the backend environment before starting the API; keep these values out of Git:
+The app sends a six-digit registration OTP, valid for 60 seconds, from the Gmail address in `MAIL_USERNAME` to the customer's email address submitted in the registration form.
 
-```powershell
-$env:MAIL_USERNAME = "sender@gmail.com"
-$env:MAIL_PASSWORD = "<sender credential>"
-$env:DATABASE_URL = "jdbc:postgresql://localhost:5432/fashion_ecommerce"
-```
+1. Sign in to the Gmail account that will send the OTP and enable 2-Step Verification.
+2. Create a Google App Password for the application. Google requires 2-Step Verification for App Passwords; see [Google's official instructions](https://support.google.com/accounts/answer/185833?hl=en).
+3. Set `MAIL_USERNAME` to that sender Gmail address. When the PowerShell command above prompts for `Google App Password`, enter the generated App Password. The input is hidden and spaces are removed automatically.
 
-If your local Compose host port differs, set `DATABASE_URL` to that port. The OTP is valid for 60 seconds. Use the sender mailbox configured for the application; customers receive the OTP at the Gmail address they submit during registration.
+Use the App Password, not the Gmail account's normal password. Do not put real passwords, App Passwords, or JWT secrets in source files, README examples, screenshots, or Git. If Google does not offer App Passwords for the account, check Google's eligibility notes in the linked instructions.
 
+For macOS/Linux, start the database with `docker compose up -d database`, set `DATABASE_URL` to `jdbc:postgresql://localhost:5433/fashion_ecommerce`, provide `JWT_SECRET`, `MAIL_USERNAME`, and `MAIL_PASSWORD` as environment variables, then run `./mvnw spring-boot:run` in `backend` and `npm run dev` in `frontend`.
 
-The frontend development server proxies `/api` requests to port 8080. Flyway creates the initial schema when the backend starts. The database container is configured for local development only and binds its port to localhost; do not reuse that authentication configuration in a deployed environment. If `java -version` shows Java 8, set `JAVA_HOME` to JDK 17 as above before running the Maven Wrapper.
+The frontend development server proxies `/api` requests to port 8080. Flyway applies database migrations when the backend starts. The database container is configured for local development only and binds its port to localhost; do not reuse that authentication configuration in a deployed environment. If `java -version` shows Java 8, set `JAVA_HOME` to JDK 17 before running the Maven Wrapper.
 
 ## Current scaffold boundary
 
-The initial scaffold contains the running backend/frontend shells, database migration for the 14 blueprint entities, and the shared API/database contract. Business endpoints remain module work. Spring Security currently permits only `/api/health` and denies all other requests until Member 1 implements authentication and role-based access.
+The project includes the shared API/database contract and module work on authentication, user profiles, and customer addresses. Spring Security is stateless, uses JWT bearer tokens, and restricts `/api/admin/**` to the `ADMIN` role. Public registration always creates a `CUSTOMER`; never accept a role from registration input.
 
 ## Module owners
 

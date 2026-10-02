@@ -34,15 +34,14 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(request));
     }
 
-    @PostMapping("/forgot-password")
+    @PostMapping("/password-reset/request")
     public ResponseEntity<RegistrationOtpResponse> requestPasswordResetOtp(
             @Valid @RequestBody ForgotPasswordRequest request
     ) {
         return ResponseEntity.accepted()
                 .body(authService.requestPasswordResetOtp(request));
     }
-
-    @PostMapping("/reset-password")
+    @PostMapping("/password-reset/confirm")
     public ResponseEntity<Void> resetPassword(
             @Valid @RequestBody ResetPasswordRequest request
     ) {
@@ -70,7 +69,7 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/register/verify-otp")
+    @PostMapping("/verify-email")
     public ResponseEntity<RegisterResponse> verifyRegistrationOtp(
             @Valid @RequestBody VerifyRegistrationOtpRequest request
     ) {

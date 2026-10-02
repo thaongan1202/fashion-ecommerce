@@ -2,16 +2,22 @@ import { useEffect, useState } from 'react'
 import type { FormEvent, InputHTMLAttributes } from 'react'
 import { BrowserRouter, Link, Route, Routes } from 'react-router-dom'
 import './App.css'
-import administrativeUnits from './data/vietnamAdministrativeUnits.json'
 
 type ApiStatus = 'idle' | 'checking' | 'online' | 'offline'
 
 type RegistrationForm = {
   fullName: string
   phone: string
-  addressLine: string
   email: string
   password: string
+}
+
+type UserAddress = {
+  id: number
+  recipientName: string
+  phone: string
+  addressLine: string
+  defaultAddress: boolean
 }
 
 type AdministrativeWard = {
@@ -25,16 +31,15 @@ type AdministrativeProvince = {
   ward: AdministrativeWard[]
 }
 
-const provinces = administrativeUnits.data as AdministrativeProvince[]
-
 type LoginApiResponse = {
   accessToken: string
-  tokenType: string
   expiresIn: number
-  id: number
-  fullName: string
-  email: string
-  role: string
+  user: {
+    id: number
+    fullName: string
+    email: string
+    role: string
+  }
 }
 
 type PasswordFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> & {
@@ -112,15 +117,9 @@ function RegisterPage() {
   const [form, setForm] = useState<RegistrationForm>({
     fullName: '',
     phone: '',
-    addressLine: '',
     email: '',
     password: '',
   })
-  const [selectedProvinceId, setSelectedProvinceId] = useState('')
-  const [selectedWardId, setSelectedWardId] = useState('')
-  const [streetAddress, setStreetAddress] = useState('')
-  const selectedProvince = provinces.find((province) => province.id === selectedProvinceId)
-  const wards = selectedProvince?.ward ?? []
   const [confirmPassword, setConfirmPassword] = useState('')
   const [otp, setOtp] = useState('')
   const [step, setStep] = useState<'details' | 'verify' | 'complete'>('details')
@@ -165,12 +164,10 @@ function RegisterPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...form,
-          addressLine: [
-            streetAddress.trim(),
-            wards.find((ward) => ward.id === selectedWardId)?.name.local,
-            selectedProvince?.name.local,
-          ].filter(Boolean).join(', '),
+          fullName: form.fullName,
+          email: form.email,
+          password: form.password,
+          phone: form.phone,
         }),
       })
       const result = await response.json().catch(() => ({}))
@@ -190,7 +187,7 @@ function RegisterPage() {
     setError('')
     setBusy(true)
     try {
-      const response = await fetch('/api/auth/register/verify-otp', {
+      const response = await fetch('/api/auth/verify-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: form.email, otp }),
@@ -225,49 +222,6 @@ function RegisterPage() {
               </label>
               <label>Số điện thoại
                 <input autoComplete="tel" inputMode="numeric" required maxLength={10} pattern="0[0-9]{9}" title="Nhập 10 chữ số, bắt đầu bằng 0" value={form.phone} onChange={(event) => updateForm('phone', event.target.value.replace(/\D/g, '').slice(0, 10))} />
-              </label>
-              <label>Số nhà, tên đường
-                <input
-                  autoComplete="street-address"
-                  required
-                  maxLength={300}
-                  value={streetAddress}
-                  onChange={(event) => setStreetAddress(event.target.value)}
-                />
-              </label>
-
-              <label>Tỉnh/thành phố
-                <select
-                  required
-                  value={selectedProvinceId}
-                  onChange={(event) => {
-                    setSelectedProvinceId(event.target.value)
-                    setSelectedWardId('')
-                  }}
-                >
-                  <option value="">Chọn tỉnh/thành phố</option>
-                  {provinces.map((province) => (
-                    <option key={province.id} value={province.id}>
-                      {province.name.local}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>Phường/xã
-                <select
-                  required
-                  value={selectedWardId}
-                  disabled={!selectedProvinceId}
-                  onChange={(event) => setSelectedWardId(event.target.value)}
-                >
-                  <option value="">Chọn phường/xã</option>
-                  {wards.map((ward) => (
-                    <option key={ward.id} value={ward.id}>
-                      {ward.name.local}
-                    </option>
-                  ))}
-                </select>
               </label>
               <label>Gmail
                 <input autoComplete="email" type="email" required maxLength={254} value={form.email} onChange={(event) => updateForm('email', event.target.value)} placeholder="ban@gmail.com" />
@@ -344,12 +298,7 @@ function LoginPage() {
       }
 
       localStorage.setItem('fashionAccessToken', result.accessToken)
-      localStorage.setItem('fashionUser', JSON.stringify({
-        id: result.id,
-        fullName: result.fullName,
-        email: result.email,
-        role: result.role,
-      }))
+      localStorage.setItem('fashionUser', JSON.stringify(result.user))
       window.location.href = '/account'
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : 'Đăng nhập thất bại.')
@@ -413,7 +362,7 @@ function ForgotPasswordPage() {
     setBusy(true)
 
     try {
-      const response = await fetch('/api/auth/forgot-password', {
+      const response = await fetch('/api/auth/password-reset/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -447,7 +396,7 @@ function ForgotPasswordPage() {
 
     setBusy(true)
     try {
-      const response = await fetch('/api/auth/reset-password', {
+      const response = await fetch('/api/auth/password-reset/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp, newPassword }),
@@ -555,10 +504,71 @@ function AccountPage() {
   const [secondsLeft, setSecondsLeft] = useState(0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [addresses, setAddresses] = useState<UserAddress[]>([])
+  const [addressError, setAddressError] = useState('')
+  const [provinces, setProvinces] = useState<AdministrativeProvince[]>([])
+  const [selectedProvinceId, setSelectedProvinceId] = useState('')
+  const [selectedWardId, setSelectedWardId] = useState('')
+  const [streetAddress, setStreetAddress] = useState('')
+  const [recipientName, setRecipientName] = useState('')
+  const [addressPhone, setAddressPhone] = useState('')
+  const [addressBusy, setAddressBusy] = useState(false)
   const [fullName] = useState(() => {
     const user = localStorage.getItem('fashionUser')
     return user ? (JSON.parse(user) as { fullName?: string }).fullName ?? '' : ''
   })
+
+  useEffect(() => {
+    const token = localStorage.getItem('fashionAccessToken')
+    if (!token) {
+      window.location.href = '/login'
+      return
+    }
+
+    let cancelled = false
+
+    fetch('/api/users/me/addresses', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (response) => {
+        const result = await response.json().catch(() => [])
+        if (!response.ok) throw new Error(result.detail ?? 'Không tải được địa chỉ.')
+        return result as UserAddress[]
+      })
+      .then((result) => {
+        if (!cancelled) setAddresses(result)
+      })
+      .catch((loadError) => {
+        if (!cancelled) {
+          setAddressError(
+            loadError instanceof Error ? loadError.message : 'Không tải được địa chỉ.',
+          )
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  useEffect(() => {
+    let cancelled = false
+
+    fetch('/vietnamAdministrativeUnits.json')
+      .then((response) => {
+        if (!response.ok) throw new Error('Không tải được dữ liệu tỉnh thành')
+        return response.json()
+      })
+      .then((result: { data: AdministrativeProvince[] }) => {
+        if (!cancelled) setProvinces(result.data)
+      })
+      .catch(() => {
+        if (!cancelled) setAddressError('Không tải được danh sách tỉnh/thành.')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (step !== 'otp' || secondsLeft <= 0) return
@@ -570,6 +580,58 @@ function AccountPage() {
     localStorage.removeItem('fashionAccessToken')
     localStorage.removeItem('fashionUser')
     window.location.href = '/login'
+  }
+
+  async function handleAddAddress(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setAddressError('')
+
+    const province = provinces.find((item) => item.id === selectedProvinceId)
+    const ward = province?.ward.find((item) => item.id === selectedWardId)
+
+    if (!province || !ward) {
+      setAddressError('Vui lòng chọn tỉnh/thành phố và phường/xã.')
+      return
+    }
+
+    setAddressBusy(true)
+
+    try {
+      const token = localStorage.getItem('fashionAccessToken')
+      if (!token) throw new Error('Vui lòng đăng nhập lại.')
+
+      const response = await fetch('/api/users/me/addresses', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          recipientName,
+          phone: addressPhone,
+          addressLine: [streetAddress.trim(), ward.name.local, province.name.local]
+            .filter(Boolean)
+            .join(', '),
+          defaultAddress: addresses.length === 0,
+        }),
+      })
+
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(result.detail ?? result.message ?? 'Không thêm được địa chỉ.')
+      }
+
+      setAddresses((current) => [...current, result as UserAddress])
+      setRecipientName('')
+      setAddressPhone('')
+      setStreetAddress('')
+      setSelectedProvinceId('')
+      setSelectedWardId('')
+    } catch (error) {
+      setAddressError(error instanceof Error ? error.message : 'Không thêm được địa chỉ.')
+    } finally {
+      setAddressBusy(false)
+    }
   }
 
   async function requestOtp(event?: FormEvent<HTMLFormElement>) {
@@ -655,6 +717,96 @@ function AccountPage() {
         <button className="button button-secondary" type="button" onClick={logout}>
           Đăng xuất
         </button>
+
+        <section className="auth-form">
+          <h2>Địa chỉ giao hàng</h2>
+
+          {addressError && (
+            <p className="auth-error" role="alert">{addressError}</p>
+          )}
+
+          {addresses.length === 0 && !addressError && (
+            <p>Bạn chưa có địa chỉ giao hàng.</p>
+          )}
+
+          <form className="auth-form" onSubmit={handleAddAddress}>
+            <label>
+              Tên người nhận
+              <input
+                required
+                value={recipientName}
+                onChange={(event) => setRecipientName(event.target.value)}
+              />
+            </label>
+
+            <label>
+              Số điện thoại
+              <input
+                required
+                value={addressPhone}
+                onChange={(event) => setAddressPhone(event.target.value)}
+              />
+            </label>
+
+            <label>
+              Số nhà, tên đường
+              <input
+                required
+                value={streetAddress}
+                onChange={(event) => setStreetAddress(event.target.value)}
+              />
+            </label>
+
+            <label>
+              Tỉnh/thành phố
+              <select
+                required
+                value={selectedProvinceId}
+                onChange={(event) => {
+                  setSelectedProvinceId(event.target.value)
+                  setSelectedWardId('')
+                }}
+              >
+                <option value="">Chọn tỉnh/thành phố</option>
+                {provinces.map((province) => (
+                  <option key={province.id} value={province.id}>
+                    {province.name.local}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Phường/xã
+              <select
+                required
+                value={selectedWardId}
+                disabled={!selectedProvinceId}
+                onChange={(event) => setSelectedWardId(event.target.value)}
+              >
+                <option value="">Chọn phường/xã</option>
+                {(provinces.find((province) => province.id === selectedProvinceId)?.ward ?? []).map(
+                  (ward) => (
+                    <option key={ward.id} value={ward.id}>
+                      {ward.name.local}
+                    </option>
+                  ),
+                )}
+              </select>
+            </label>
+
+            <button type="submit" disabled={addressBusy}>
+              {addressBusy ? 'Đang lưu...' : 'Thêm địa chỉ'}
+            </button>
+          </form>
+
+          {addresses.map((address) => (
+            <p key={address.id}>
+              {address.recipientName} · {address.phone} · {address.addressLine}
+              {address.defaultAddress && ' · Mặc định'}
+            </p>
+          ))}
+        </section>
 
         {step === 'done' ? (
           <div className="auth-success">

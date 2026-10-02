@@ -29,8 +29,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
-import vn.edu.hcmute.fashion.user.Address;
-import vn.edu.hcmute.fashion.user.AddressRepository;
 import vn.edu.hcmute.fashion.user.User;
 import vn.edu.hcmute.fashion.user.UserRepository;
 
@@ -39,7 +37,6 @@ class AuthRegistrationTest {
     private static final Instant NOW = Instant.parse("2026-10-01T05:00:00Z");
 
     private UserRepository userRepository;
-    private AddressRepository addressRepository;
     private PendingRegistrationRepository pendingRepository;
     private PendingPasswordResetRepository pendingPasswordResetRepository;
     private PendingPasswordChangeRepository pendingPasswordChangeRepository;
@@ -54,7 +51,6 @@ class AuthRegistrationTest {
     @BeforeEach
     void setUp() {
         userRepository = org.mockito.Mockito.mock(UserRepository.class);
-        addressRepository = org.mockito.Mockito.mock(AddressRepository.class);
         pendingRepository = org.mockito.Mockito.mock(PendingRegistrationRepository.class);
         pendingPasswordResetRepository = org.mockito.Mockito.mock(PendingPasswordResetRepository.class);
         pendingPasswordChangeRepository = org.mockito.Mockito.mock(PendingPasswordChangeRepository.class);
@@ -64,7 +60,6 @@ class AuthRegistrationTest {
         clock = new MutableClock(NOW);
         authService = new AuthService(
                 userRepository,
-                addressRepository,
                 pendingRepository,
                 pendingPasswordResetRepository,
                 pendingPasswordChangeRepository,
@@ -85,7 +80,7 @@ class AuthRegistrationTest {
     @Test
     void registrationRequiresVietnamPhoneGmailAndStrongPassword() {
         RegisterRequest invalid = new RegisterRequest(
-                "Test User", "1234567890", "Home address", "test@example.com", "weak"
+                "Test User", "1234567890", "test@example.com", "weak"
         );
 
         assertThat(validator.validate(invalid)).hasSizeGreaterThanOrEqualTo(3);
@@ -108,7 +103,6 @@ class AuthRegistrationTest {
         assertThat(response.expiresInSeconds()).isEqualTo(60);
         assertThat(sentOtp.get()).matches("[0-9]{6}");
         verify(userRepository, never()).save(any(User.class));
-        verify(addressRepository, never()).save(any(Address.class));
         org.mockito.ArgumentCaptor<PendingRegistration> pendingCaptor =
                 org.mockito.ArgumentCaptor.forClass(PendingRegistration.class);
         verify(pendingRepository).save(pendingCaptor.capture());
@@ -145,7 +139,7 @@ class AuthRegistrationTest {
     }
 
     @Test
-    void validOtpCreatesCustomerAndDefaultAddressThenConsumesPendingRegistration() {
+    void validOtpCreatesCustomerAndConsumesPendingRegistration() {
         PendingRegistration pending = pending("test@gmail.com", NOW.plusSeconds(60), "123456");
         when(pendingRepository.findByEmailIgnoreCase("test@gmail.com")).thenReturn(Optional.of(pending));
         when(userRepository.existsByEmailIgnoreCase("test@gmail.com")).thenReturn(false);
@@ -154,18 +148,12 @@ class AuthRegistrationTest {
             ReflectionTestUtils.setField(saved, "id", 73L);
             return saved;
         });
-        when(addressRepository.save(any(Address.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
         RegisterResponse response = authService.verifyRegistrationOtp(
                 new VerifyRegistrationOtpRequest("test@gmail.com", "123456")
         );
 
         assertThat(response.id()).isEqualTo(73L);
         assertThat(response.role()).isEqualTo("CUSTOMER");
-        org.mockito.ArgumentCaptor<Address> addressCaptor = org.mockito.ArgumentCaptor.forClass(Address.class);
-        verify(addressRepository).save(addressCaptor.capture());
-        assertThat(addressCaptor.getValue().getUserId()).isEqualTo(73L);
-        assertThat(addressCaptor.getValue().isDefaultAddress()).isTrue();
         verify(pendingRepository).delete(pending);
     }
 
@@ -215,7 +203,7 @@ class AuthRegistrationTest {
     }
 
     private RegisterRequest validRequest(String email) {
-        return new RegisterRequest("Test User", "0912345678", "10 Example Street", email, "Strong#Pass1");
+        return new RegisterRequest("Test User", "0912345678", email, "Strong#Pass1");
     }
 
     private PendingRegistration pending(String email, Instant expiresAt, String otp) {
@@ -223,7 +211,6 @@ class AuthRegistrationTest {
         ReflectionTestUtils.setField(pending, "id", 1L);
         pending.setFullName("Test User");
         pending.setPhone("0912345678");
-        pending.setAddressLine("10 Example Street");
         pending.setEmail(email);
         pending.setPasswordHash(passwordEncoder.encode("Strong#Pass1"));
         pending.setOtpHash(passwordEncoder.encode(otp));

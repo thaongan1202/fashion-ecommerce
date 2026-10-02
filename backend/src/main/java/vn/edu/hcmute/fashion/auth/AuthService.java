@@ -12,8 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import vn.edu.hcmute.fashion.user.Address;
-import vn.edu.hcmute.fashion.user.AddressRepository;
 import vn.edu.hcmute.fashion.user.User;
 import vn.edu.hcmute.fashion.user.UserRepository;
 
@@ -25,7 +23,6 @@ public class AuthService {
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final UserRepository userRepository;
-    private final AddressRepository addressRepository;
     private final PendingRegistrationRepository pendingRepository;
     private final PendingPasswordResetRepository pendingPasswordResetRepository;
     private final PendingPasswordChangeRepository pendingPasswordChangeRepository;
@@ -37,7 +34,6 @@ public class AuthService {
 
     public AuthService(
             UserRepository userRepository,
-            AddressRepository addressRepository,
             PendingRegistrationRepository pendingRepository,
             PendingPasswordResetRepository pendingPasswordResetRepository,
             PendingPasswordChangeRepository pendingPasswordChangeRepository,
@@ -47,7 +43,6 @@ public class AuthService {
             JwtTokenService jwtTokenService
     ) {
         this.userRepository = userRepository;
-        this.addressRepository = addressRepository;
         this.pendingRepository = pendingRepository;
         this.pendingPasswordResetRepository = pendingPasswordResetRepository;
         this.pendingPasswordChangeRepository = pendingPasswordChangeRepository;
@@ -83,12 +78,13 @@ public class AuthService {
 
         return new LoginResponse(
                 jwtTokenService.createToken(user),
-                "Bearer",
                 jwtTokenService.getTokenLifetimeSeconds(),
-                user.getId(),
-                user.getFullName(),
-                user.getEmail(),
-                user.getRole()
+                new LoginResponse.LoginUser(
+                        user.getId(),
+                        user.getFullName(),
+                        user.getEmail(),
+                        user.getRole()
+                )
         );
     }
 
@@ -316,7 +312,6 @@ public class AuthService {
         String otp = String.format(Locale.ROOT, "%06d", SECURE_RANDOM.nextInt(1_000_000));
         pending.setFullName(request.fullName().trim());
         pending.setPhone(request.phone());
-        pending.setAddressLine(request.addressLine().trim());
         pending.setEmail(email);
         pending.setPasswordHash(passwordEncoder.encode(request.password()));
         pending.setOtpHash(passwordEncoder.encode(otp));
@@ -362,13 +357,6 @@ public class AuthService {
         user.setPasswordHash(pending.getPasswordHash());
         User savedUser = userRepository.save(user);
 
-        addressRepository.save(new Address(
-                savedUser.getId(),
-                pending.getFullName(),
-                pending.getPhone(),
-                pending.getAddressLine(),
-                true
-        ));
         pendingRepository.delete(pending);
 
         return new RegisterResponse(
