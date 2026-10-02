@@ -41,6 +41,9 @@ class AuthRegistrationTest {
     private UserRepository userRepository;
     private AddressRepository addressRepository;
     private PendingRegistrationRepository pendingRepository;
+    private PendingPasswordResetRepository pendingPasswordResetRepository;
+    private PendingPasswordChangeRepository pendingPasswordChangeRepository;
+    private JwtTokenService jwtTokenService;
     private RegistrationOtpMailer otpMailer;
     private PasswordEncoder passwordEncoder;
     private MutableClock clock;
@@ -53,6 +56,9 @@ class AuthRegistrationTest {
         userRepository = org.mockito.Mockito.mock(UserRepository.class);
         addressRepository = org.mockito.Mockito.mock(AddressRepository.class);
         pendingRepository = org.mockito.Mockito.mock(PendingRegistrationRepository.class);
+        pendingPasswordResetRepository = org.mockito.Mockito.mock(PendingPasswordResetRepository.class);
+        pendingPasswordChangeRepository = org.mockito.Mockito.mock(PendingPasswordChangeRepository.class);
+        jwtTokenService = org.mockito.Mockito.mock(JwtTokenService.class);
         otpMailer = org.mockito.Mockito.mock(RegistrationOtpMailer.class);
         passwordEncoder = new BCryptPasswordEncoder();
         clock = new MutableClock(NOW);
@@ -60,9 +66,12 @@ class AuthRegistrationTest {
                 userRepository,
                 addressRepository,
                 pendingRepository,
+                pendingPasswordResetRepository,
+                pendingPasswordChangeRepository,
                 passwordEncoder,
                 otpMailer,
-                clock
+                clock,
+                jwtTokenService
         );
         validatorFactory = Validation.buildDefaultValidatorFactory();
         validator = validatorFactory.getValidator();
