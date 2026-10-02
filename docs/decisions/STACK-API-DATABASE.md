@@ -24,7 +24,7 @@ Phạm vi: dựng skeleton và đóng băng các hợp đồng để năm thành
 | Nhóm | Endpoint tối thiểu | Auth | Owner / phối hợp |
 |---|---|---|---|
 | Health | `GET /api/health` | Public | Setup owner |
-| Auth | `POST /api/auth/register`, `POST /api/auth/login` | Public | Member 1 |
+| Auth | `POST /api/auth/register` (request email OTP), `POST /api/auth/register/verify-otp`, `POST /api/auth/login` | Public | Member 1 |
 | Profile | `GET, PUT /api/users/me` | Customer | Member 1 |
 | Address | `GET, POST /api/users/me/addresses`; `PUT, DELETE /api/users/me/addresses/{addressId}` | Customer | Member 1 |
 | Catalog read | `GET /api/categories`, `/api/brands` | Public | Member 2 |
@@ -47,6 +47,13 @@ Phạm vi: dựng skeleton và đóng băng các hợp đồng để năm thành
 - `POST /api/orders`: `{ "addressId": 44, "voucherCode": "WELCOME" }`; Member 4 sở hữu toàn transaction và gọi service Voucher của Member 5 bên trong transaction đó. Chỉ tăng `used_count` sau khi Order/Items tạo thành công; rollback hết khi lỗi.
 - Admin status update gửi `{ "status": "PROCESSING", "note": "..." }`; service kiểm tra transition hợp lệ.
 - Review status update gửi `{ "status": "APPROVED" }` hoặc `HIDDEN`.
+
+### Customer registration verification
+
+- `POST /api/auth/register` accepts `fullName`, `phone`, `addressLine`, `email`, and `password`; it sends a six-digit OTP and returns `202 Accepted`. It does not create a user yet.
+- Phone is exactly 10 digits beginning with `0`. Email must be a Gmail address. Password length is 8–32 characters and requires uppercase, lowercase, digit, and special character.
+- `POST /api/auth/register/verify-otp` accepts `{ "email": "customer@gmail.com", "otp": "123456" }`. A valid OTP expires after 60 seconds; after expiry, requesting `/register` again sends a replacement OTP. A verified request creates the CUSTOMER account and its default address in one database transaction.
+- OTPs and pending passwords are stored as hashes. The application sends mail from the sender configured by `MAIL_USERNAME`; keep sender credentials in environment variables, never in Git.
 
 ## Quyết định database đã áp dụng trong migration đầu
 

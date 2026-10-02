@@ -33,6 +33,19 @@ From the repository root (macOS):
    Run `npm install` once per checkout; afterwards use `npm run dev`.
 4. Open `http://localhost:5173` and select **Check backend**. The API health endpoint is `http://localhost:8080/api/health`.
 
+## Registration email OTP
+
+Registration sends a six-digit OTP through Gmail SMTP. Configure the sender mailbox in the backend environment before starting the API; keep these values out of Git:
+
+```powershell
+$env:MAIL_USERNAME = "sender@gmail.com"
+$env:MAIL_PASSWORD = "<sender credential>"
+$env:DATABASE_URL = "jdbc:postgresql://localhost:5432/fashion_ecommerce"
+```
+
+If your local Compose host port differs, set `DATABASE_URL` to that port. The OTP is valid for 60 seconds. Use the sender mailbox configured for the application; customers receive the OTP at the Gmail address they submit during registration.
+
+
 The frontend development server proxies `/api` requests to port 8080. Flyway creates the initial schema when the backend starts. The database container is configured for local development only and binds its port to localhost; do not reuse that authentication configuration in a deployed environment. If `java -version` shows Java 8, set `JAVA_HOME` to JDK 17 as above before running the Maven Wrapper.
 
 ## Current scaffold boundary
