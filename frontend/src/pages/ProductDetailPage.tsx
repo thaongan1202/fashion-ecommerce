@@ -92,7 +92,7 @@ export function ProductDetailPage({ demoUser }: { demoUser: DemoSession | null }
       {demoUser?.userId && eligible === false && <p className="notice notice-error">Tài khoản này chưa có đơn hàng đã giao chứa sản phẩm này nên chưa thể đánh giá.</p>}
       {demoUser?.userId && eligible === null && <p>Đang kiểm tra điều kiện đánh giá…</p>}
       {demoUser?.userId && eligible && <>
-        {myReview && <p className="notice">Đánh giá của bạn đã được đăng. Bạn có thể chỉnh sửa đánh giá này.</p>}
+        {myReview && <p className="notice">{myReview.status === 'PENDING' ? 'Đánh giá đang chờ Admin duyệt.' : myReview.status === 'HIDDEN' ? 'Đánh giá đang bị ẩn. Bạn có thể chỉnh sửa để gửi lại duyệt.' : 'Đánh giá của bạn đã được duyệt.'} Bạn có thể chỉnh sửa đánh giá này.</p>}
         <form className="review-form review-form-quick" onSubmit={submitReview}>
           <label>Điểm đánh giá<select value={rating} onChange={(event) => setRating(Number(event.target.value))}>{[5, 4, 3, 2, 1].map((value) => <option key={value} value={value}>{value} sao</option>)}</select></label>
           <label>Phân loại đã mua<select required value={selectedVariantId} onChange={(event) => setSelectedVariantId(event.target.value)}>{purchasedVariants.map((variant) => <option value={variant.id} key={variant.id}>{[variant.size, variant.color].filter(Boolean).join(' · ') || 'Phân loại mặc định'}</option>)}</select></label>

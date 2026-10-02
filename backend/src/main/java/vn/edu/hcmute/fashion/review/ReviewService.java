@@ -36,7 +36,7 @@ public class ReviewService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Bạn đã đánh giá sản phẩm này");
         }
         try {
-            return repository.create(userId, productId, rating, comment, "APPROVED",
+            return repository.create(userId, productId, rating, comment, "PENDING",
                     variantId, heightCm, weightKg, imageUrl);
         } catch (DataIntegrityViolationException exception) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Bạn đã đánh giá sản phẩm này");
@@ -57,7 +57,7 @@ public class ReviewService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bạn chỉ có thể sửa đánh giá khi đã mua và nhận sản phẩm");
         }
         ReviewResponse review = repository.update(reviewId, userId, productId, rating, comment,
-                "APPROVED", variantId, heightCm, weightKg, imageUrl);
+                "PENDING", variantId, heightCm, weightKg, imageUrl);
         if (review == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy đánh giá của bạn");
         return review;
     }
@@ -68,6 +68,25 @@ public class ReviewService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only customers with a delivered purchase can upload a review image");
         }
         return imageStorage.save(file);
+    }
+
+    public List<AdminReviewResponse> listPending(long userId) {
+        requireAdmin(userId);
+        return repository.findPending();
+    }
+
+    public AdminReviewResponse changeStatus(long userId, long reviewId, String status) {
+        requireAdmin(userId);
+        if (reviewId <= 0 || !("APPROVED".equals(status) || "HIDDEN".equals(status))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Trạng thái review không hợp lệ");
+        }
+        AdminReviewResponse result = repository.changeStatus(reviewId, status);
+        if (result == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy review đang chờ duyệt");
+        return result;
+    }
+
+    private void requireAdmin(long userId) {
+        if (!repository.isActiveAdmin(userId)) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Chỉ Admin mới được quản lý review");
     }
 
     private void validateReview(int rating, String comment, Long variantId, Integer heightCm, BigDecimal weightKg, String imageUrl) {

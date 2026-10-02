@@ -4,6 +4,7 @@ import { BrowserRouter, Link, Route, Routes } from 'react-router-dom'
 import './App.css'
 import { ProductListPage } from './pages/ProductListPage'
 import { ProductDetailPage } from './pages/ProductDetailPage'
+import { AdminReviewsPage } from './pages/AdminReviewsPage'
 import { getDemoSession, getDemoUsers, loginDemo, logoutDemo } from './api/demoAuth'
 import { getReviewReminders } from './api/products'
 import type { DemoSession, DemoUser } from './types/auth'
@@ -82,6 +83,7 @@ function App() {
           </Link>
           <nav className="main-nav" aria-label="Main navigation">
             <Link to="/products">Sản phẩm</Link>
+            {demoUser?.role === 'ADMIN' && <Link to="/admin/reviews">Duyệt review</Link>}
           </nav>
           <div className="demo-auth">
             {demoUser ? <><span>Xin chào, {demoUser.fullName}</span><button onClick={handleLogout}>Đăng xuất</button></> : <>
@@ -91,7 +93,7 @@ function App() {
                 <select required value={selectedEmail} onChange={(event) => setSelectedEmail(event.target.value)}>
                   {demoUsers.map((user) => <option value={user.email} key={user.id}>{user.fullName} — {user.email}</option>)}
                 </select>
-                <small>Tài khoản Buyer có đơn đã giao sản phẩm mẫu; tài khoản Visitor/Without Purchase chưa có đơn.</small>
+                <small>Chọn Buyer/Visitor để thử review hoặc Demo Admin để duyệt.</small>
                 {authError && <span className="auth-error" role="alert">{authError}</span>}
                 <button type="submit" disabled={!selectedEmail}>Đăng nhập</button>
               </form>}
@@ -107,6 +109,7 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/products" element={<ProductListPage />} />
           <Route path="/products/:productId" element={<ProductDetailPage demoUser={demoUser} />} />
+          <Route path="/admin/reviews" element={demoUser?.role === 'ADMIN' ? <AdminReviewsPage /> : <ComingSoon title="Bạn cần đăng nhập bằng tài khoản Admin" />} />
           <Route path="/products/*" element={<ProductListPage />} />
           <Route path="*" element={<ComingSoon title="Không tìm thấy trang" />} />
         </Routes>

@@ -16,6 +16,8 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/health").permitAll()
                         .requestMatchers("/api/demo/**").permitAll()
+                        // Admin routes verify the active ADMIN role from the server-side session.
+                        .requestMatchers("/api/admin/reviews/**").permitAll()
                         .requestMatchers("/api/reviews/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/uploads/reviews/**").permitAll()

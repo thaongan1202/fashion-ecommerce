@@ -1,4 +1,5 @@
-#root { min-height: 100vh; }
+html, body { margin: 0; font-family: Georgia, 'Times New Roman', serif; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+* { box-sizing: border-box; }
 .app-frame { width: min(1180px, calc(100% - 64px)); margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
 .site-header { height: 82px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e8e0d6; }
 .brand { display: inline-flex; gap: 11px; align-items: center; color: #26231f; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-decoration: none; }
@@ -11,9 +12,9 @@
 .page-shell { flex: 1; padding: 64px 0 56px; }
 .hero-card { min-height: 380px; padding: 68px 76px; border-radius: 8px; background: #eee6db; position: relative; overflow: hidden; }
 .hero-card::after { content: ''; position: absolute; width: 390px; height: 390px; border: 1px solid #d2c2b0; border-radius: 50%; right: 4%; top: 50%; transform: translateY(-50%); box-shadow: 0 0 0 35px #eee6db, 0 0 0 36px #d2c2b0, 0 0 0 75px #eee6db, 0 0 0 76px #d2c2b0; opacity: .7; pointer-events: none; }
-.eyebrow { margin: 0 0 20px; color: #9a6243; font-size: 10px; font-weight: 700; letter-spacing: .17em; }
-h1, h2 { font-family: Georgia, serif; }
-.hero-card h1, .placeholder-card h1 { max-width: 570px; margin: 0; font-size: clamp(42px, 5vw, 64px); font-weight: 500; letter-spacing: -.035em; line-height: 1.06; }
+.eyebrow { margin: 0 0 20px; color: #9a6243; font-size: 10px; font-weight: 700; letter-spacing: 0; }
+h1, h2 { font-family: Georgia, 'Times New Roman', serif; }
+.hero-card h1, .placeholder-card h1 { max-width: 570px; margin: 0; font-size: clamp(42px, 5vw, 64px); font-weight: 500; letter-spacing: 0; line-height: 1.2; }
 .hero-copy { max-width: 470px; margin: 20px 0 26px; color: #6c655b; font-size: 14px; line-height: 1.8; }
 .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; }
 .button { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 0 19px; border: 1px solid #a76743; border-radius: 4px; font-size: 12px; font-weight: 600; text-decoration: none; }
@@ -70,7 +71,7 @@ h1, h2 { font-family: Georgia, serif; }
 .product-image img, .detail-image img { width: 100%; height: 100%; object-fit: cover; }
 .product-info { display: grid; align-content: start; gap: 7px; min-width: 0; padding: 15px; }
 .product-info p { margin: 0; color: #9a6243; font-size: 10px; font-weight: 600; letter-spacing: .1em; line-height: 1.4; text-transform: uppercase; }
-.product-info h3 { display: -webkit-box; overflow: hidden; margin: 0; color: #302b26; font: 500 15px/1.5 system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.product-info h3 { display: -webkit-box; overflow: hidden; margin: 0; color: #302b26; font: 500 15px/1.5 Georgia, 'Times New Roman', serif; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .product-info > span:not(.product-rating) { color: #875237; font-size: 14px; font-weight: 600; line-height: 1.45; }
 .product-rating { color: #9a6243; font-size: 11px; line-height: 1.5; }
 .search-field input { min-width: 240px; }
@@ -83,7 +84,7 @@ h1, h2 { font-family: Georgia, serif; }
 .detail-image { min-height: 540px; }
 .detail-copy { align-self: center; min-width: 0; }
 .detail-copy .eyebrow { margin-bottom: 12px; line-height: 1.6; }
-.detail-copy h1 { margin: 0 0 12px; color: #302b26; font: 600 clamp(30px, 4vw, 42px)/1.25 system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; letter-spacing: -.025em; overflow-wrap: anywhere; }
+.detail-copy h1 { margin: 0 0 12px; color: #302b26; font: 600 clamp(30px, 4vw, 42px)/1.25 Georgia, 'Times New Roman', serif; letter-spacing: 0; overflow-wrap: anywhere; }
 .detail-copy > p:not(.eyebrow) { color: #746b60; font-size: 14px; line-height: 1.75; }
 .detail-copy .detail-price { margin: 0 0 20px; color: #875237; font-size: 20px; font-weight: 650; line-height: 1.5; }
 .rating-summary { color: #71675c; font-size: 13px; }
@@ -113,6 +114,13 @@ h1, h2 { font-family: Georgia, serif; }
 .notice-error { background: #fae9e6; color: #9c382e; }
 .notice-success { background: #e9f3ea; color: #32724e; }
 .related-section .product-grid { margin-top: 22px; }
+.admin-review-page > h1 { margin: 0 0 8px; font: 500 36px Georgia, serif; }
+.admin-review-list { display: grid; gap: 16px; margin-top: 28px; }
+.admin-review-card { padding: 20px; border: 1px solid #e5ddd2; border-radius: 6px; background: #fffdf9; }
+.admin-review-heading, .admin-review-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.admin-review-heading span, .admin-review-card small { color: #746b60; font-size: 12px; }
+.admin-review-card p { color: #51483e; line-height: 1.65; white-space: pre-wrap; }
+.admin-review-actions { justify-content: start; margin-top: 14px; }
 
 @media (max-width: 700px) {
   .app-frame { width: min(100% - 36px, 560px); }

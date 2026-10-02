@@ -102,6 +102,49 @@ class ReviewRepository {
         return jdbc.queryForObject("SELECT count(*) FROM reviews WHERE product_id = ? AND status = 'APPROVED'", Long.class, productId);
     }
 
+    boolean isActiveAdmin(long userId) {
+        return Boolean.TRUE.equals(jdbc.queryForObject(
+                "SELECT EXISTS (SELECT 1 FROM users WHERE id = ? AND role = 'ADMIN' AND status = 'ACTIVE')",
+                Boolean.class, userId));
+    }
+
+    List<AdminReviewResponse> findPending() {
+        return jdbc.query("""
+                SELECT r.id, r.product_id, p.name AS product_name, u.full_name, r.rating, r.comment,
+                       r.image_url, r.status, r.variant_id, pv.size, pv.color, r.height_cm, r.weight_kg, r.created_at
+                FROM reviews r
+                JOIN products p ON p.id = r.product_id
+                JOIN users u ON u.id = r.user_id
+                LEFT JOIN product_variants pv ON pv.id = r.variant_id
+                WHERE r.status = 'PENDING'
+                ORDER BY r.created_at ASC, r.id ASC
+                """, (rs, row) -> new AdminReviewResponse(rs.getLong("id"), rs.getLong("product_id"),
+                rs.getString("product_name"), rs.getString("full_name"), rs.getInt("rating"),
+                rs.getString("comment"), rs.getString("image_url"), rs.getString("status"),
+                (Long) rs.getObject("variant_id"), rs.getString("size"), rs.getString("color"),
+                (Integer) rs.getObject("height_cm"), rs.getBigDecimal("weight_kg"),
+                rs.getObject("created_at", java.time.OffsetDateTime.class)));
+    }
+
+    AdminReviewResponse changeStatus(long reviewId, String status) {
+        int updated = jdbc.update("UPDATE reviews SET status = ? WHERE id = ? AND status = 'PENDING'", status, reviewId);
+        if (updated == 0) return null;
+        return jdbc.query("""
+                SELECT r.id, r.product_id, p.name AS product_name, u.full_name, r.rating, r.comment,
+                       r.image_url, r.status, r.variant_id, pv.size, pv.color, r.height_cm, r.weight_kg, r.created_at
+                FROM reviews r
+                JOIN products p ON p.id = r.product_id
+                JOIN users u ON u.id = r.user_id
+                LEFT JOIN product_variants pv ON pv.id = r.variant_id
+                WHERE r.id = ?
+                """, (rs, row) -> new AdminReviewResponse(rs.getLong("id"), rs.getLong("product_id"),
+                rs.getString("product_name"), rs.getString("full_name"), rs.getInt("rating"),
+                rs.getString("comment"), rs.getString("image_url"), rs.getString("status"),
+                (Long) rs.getObject("variant_id"), rs.getString("size"), rs.getString("color"),
+                (Integer) rs.getObject("height_cm"), rs.getBigDecimal("weight_kg"),
+                rs.getObject("created_at", java.time.OffsetDateTime.class)), reviewId).stream().findFirst().orElse(null);
+    }
+
     private static ReviewResponse mapReview(ResultSet rs, int row) throws SQLException {
         long variantId = rs.getLong("variant_id");
         Long nullableVariantId = rs.wasNull() ? null : variantId;
