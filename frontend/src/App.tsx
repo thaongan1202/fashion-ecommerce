@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { BrowserRouter, Link, Route, Routes } from 'react-router-dom'
 import './App.css'
+import { AdminModule } from './admin/AdminModule'
 
 type ApiStatus = 'idle' | 'checking' | 'online' | 'offline'
 
@@ -80,7 +81,7 @@ function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/products/*" element={<ComingSoon title="Danh mục sản phẩm" />} />
-          <Route path="/admin/*" element={<ComingSoon title="Khu vực quản trị" />} />
+          <Route path="/admin/*" element={<AdminModule />} />
           <Route path="*" element={<ComingSoon title="Không tìm thấy trang" />} />
         </Routes>
         <footer className="site-footer"><span>HCMUTE · Công nghệ Phần mềm</span><span>Nhóm 6</span></footer>
