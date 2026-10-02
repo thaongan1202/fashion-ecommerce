@@ -9,10 +9,9 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
-import jakarta.servlet.http.HttpSession;
+import java.security.Principal;
 import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartFile;
-import vn.edu.hcmute.fashion.shared.DemoAuthController;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -36,32 +35,39 @@ public class ReviewController {
     }
 
     @GetMapping("/mine")
-    public ReviewService.MineReview mine(@PathVariable long productId, HttpSession session) {
-        return service.mine(productId, requireUserId(session));
+    public ReviewService.MineReview mine(@PathVariable long productId, Principal principal) {
+        return service.mine(productId, requireUserId(principal));
     }
 
     @PostMapping(value = "/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ReviewImageResponse uploadImage(@PathVariable long productId, HttpSession session,
+    public ReviewImageResponse uploadImage(@PathVariable long productId, Principal principal,
             @RequestPart("file") MultipartFile file) {
-        return new ReviewImageResponse(service.uploadImage(productId, requireUserId(session), file));
+        return new ReviewImageResponse(service.uploadImage(productId, requireUserId(principal), file));
     }
 
     @PostMapping
-    public ReviewResponse create(@PathVariable long productId, HttpSession session,
+    public ReviewResponse create(@PathVariable long productId, Principal principal,
             @Valid @RequestBody CreateReviewRequest request) {
-        return service.create(productId, requireUserId(session), request.rating(), request.comment(), request.variantId(), request.heightCm(), request.weightKg(), request.imageUrl());
+        return service.create(productId, requireUserId(principal), request.rating(), request.comment(), request.variantId(), request.heightCm(), request.weightKg(), request.imageUrl());
     }
 
     @PutMapping("/{reviewId}")
-    public ReviewResponse update(@PathVariable long productId, @PathVariable long reviewId, HttpSession session,
+    public ReviewResponse update(@PathVariable long productId, @PathVariable long reviewId, Principal principal,
             @Valid @RequestBody CreateReviewRequest request) {
-        return service.update(productId, reviewId, requireUserId(session), request.rating(), request.comment(), request.variantId(), request.heightCm(), request.weightKg(), request.imageUrl());
+        return service.update(productId, reviewId, requireUserId(principal), request.rating(), request.comment(), request.variantId(), request.heightCm(), request.weightKg(), request.imageUrl());
     }
 
-    private long requireUserId(HttpSession session) {
-        Object userId = session.getAttribute(DemoAuthController.SESSION_USER_ID);
-        if (userId instanceof Long id) return id;
-        throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.UNAUTHORIZED, "Đăng nhập trước khi đánh giá sản phẩm");
+    private long requireUserId(Principal principal) {
+        if (principal == null || principal.getName() == null || principal.getName().isBlank()) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.UNAUTHORIZED, "Đăng nhập trước khi đánh giá sản phẩm");
+        }
+        try {
+            long userId = Long.parseLong(principal.getName());
+            if (userId > 0) return userId;
+        } catch (NumberFormatException ignored) {
+            // Demo and future JWT principals use the user ID as their subject.
+        }
+        throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.UNAUTHORIZED, "Phiên đăng nhập không hợp lệ");
     }
 
     public record CreateReviewRequest(

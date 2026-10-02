@@ -1,7 +1,7 @@
 import type { CategoryOption, MineReview, PageResult, PriceRange, Product, Review, ReviewReminder } from '../types/product'
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { ...init, headers: { 'Content-Type': 'application/json', ...init?.headers } })
+  const response = await fetch(url, { ...init, credentials: 'include', headers: { 'Content-Type': 'application/json', ...init?.headers } })
   if (!response.ok) {
     const problem = await response.json().catch(() => null)
     throw new Error(problem?.message ?? 'Không thể tải dữ liệu. Vui lòng thử lại.')
@@ -42,7 +42,7 @@ export type ReviewInput = { rating: number; comment: string; variantId: number; 
 export async function uploadReviewImage(productId: number, file: File) {
   const body = new FormData()
   body.append('file', file)
-  const response = await fetch(`/api/products/${productId}/reviews/image`, { method: 'POST', body })
+  const response = await fetch(`/api/products/${productId}/reviews/image`, { method: 'POST', body, credentials: 'include' })
   if (!response.ok) {
     const problem = await response.json().catch(() => null)
     throw new Error(problem?.message ?? 'Không thể tải ảnh đánh giá lên.')

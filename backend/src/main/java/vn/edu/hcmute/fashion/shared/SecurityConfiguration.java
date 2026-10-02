@@ -19,12 +19,13 @@ public class SecurityConfiguration {
                         // Admin routes verify the active ADMIN role from the server-side session.
                         .requestMatchers("/api/admin/reviews/**").permitAll()
                         .requestMatchers("/api/reviews/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/products/*/reviews/mine").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/uploads/reviews/**").permitAll()
-                        // The demo review controller verifies its server-side HttpSession.
-                        .requestMatchers(HttpMethod.POST, "/api/products/*/reviews").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/products/*/reviews/image").permitAll()
-                        .requestMatchers(HttpMethod.PUT, "/api/products/*/reviews/*").permitAll()
+                        // Review mutations resolve the user from Spring Security's Principal.
+                        .requestMatchers(HttpMethod.POST, "/api/products/*/reviews").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/products/*/reviews/image").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/api/products/*/reviews/*").authenticated()
                         .anyRequest().denyAll())
                 .build();
     }

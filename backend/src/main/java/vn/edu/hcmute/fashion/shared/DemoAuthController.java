@@ -2,6 +2,13 @@ package vn.edu.hcmute.fashion.shared;
 
 import java.util.List;
 import jakarta.servlet.http.HttpSession;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,7 +40,8 @@ public class DemoAuthController {
     }
 
     @PostMapping("/login")
-    public DemoSession login(@RequestBody DemoLogin request, HttpSession session) {
+    public DemoSession login(@RequestBody DemoLogin request, HttpServletRequest servletRequest,
+            HttpServletResponse servletResponse, HttpSession session) {
         var user = jdbc.query("""
                 SELECT id, full_name, email, role
                 FROM users
@@ -44,6 +52,12 @@ public class DemoAuthController {
                 rs.getString("email"), rs.getString("role")), request.email(), DEMO_ADMIN_EMAIL)
                 .stream().findFirst().orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Tài khoản demo không hợp lệ"));
         session.setAttribute(SESSION_USER_ID, user.id());
+        var authentication = new UsernamePasswordAuthenticationToken(user.id().toString(), null,
+                List.of(new SimpleGrantedAuthority("ROLE_" + user.role())));
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(authentication);
+        SecurityContextHolder.setContext(context);
+        new HttpSessionSecurityContextRepository().saveContext(context, servletRequest, servletResponse);
         return new DemoSession(user.id(), user.fullName(), user.email(), user.role());
     }
 
@@ -61,7 +75,10 @@ public class DemoAuthController {
     }
 
     @PostMapping("/logout")
-    public void logout(HttpSession session) { session.invalidate(); }
+    public void logout(HttpSession session) {
+        SecurityContextHolder.clearContext();
+        session.invalidate();
+    }
 
     public record DemoLogin(String email) {}
     public record DemoUser(Long id, String fullName, String email, String role) {}
