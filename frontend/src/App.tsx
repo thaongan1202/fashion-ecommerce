@@ -956,8 +956,6 @@ function App() {
           <Route path="/admin/reviews" element={<AdminReviewsPage />} />
           <Route path="/admin/*" element={<AdminModule />} />
 
-          
-                      <Link to="/admin/reviews">Quản trị đánh giá</Link>
           <Route path="*" element={<ComingSoon title="Không tìm thấy trang" />} />
         </Routes>
         <footer className="site-footer"><span>HCMUTE · Công nghệ Phần mềm</span><span>Nhóm 6</span></footer>
