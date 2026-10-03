@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent, InputHTMLAttributes } from 'react'
-import { BrowserRouter, Link, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Link, Route, Routes, useParams } from 'react-router-dom'
+import { AdminOrdersPage, CartPage, CheckoutPage, OrdersPage } from './OrderPages'
 import './App.css'
 
 type ApiStatus = 'idle' | 'checking' | 'online' | 'offline'
@@ -903,7 +904,9 @@ function App() {
             <Link to="/register">Đăng ký</Link>
             <Link to="/login">Đăng nhập</Link>
             <Link to="/admin">Quản trị</Link>
-
+            <Link to="/cart">Giỏ hàng</Link>
+            <Link to="/orders">Đơn hàng</Link>
+            <Link to="/admin/orders">Quản trị đơn hàng</Link>
           </nav>
           <span className="header-note">Đồ án CNPM · 2026</span>
         </header>
@@ -913,6 +916,11 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/account" element={<AccountPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/cart" element={<CartPage />} />
+          <Route path="/checkout" element={<CheckoutPage />} />
+          <Route path="/orders" element={<OrdersPage />} />
+          <Route path="/orders/:orderId" element={<OrderDetailRoute />} />
+          <Route path="/admin/orders" element={<AdminOrdersPage />} />
           <Route path="/products/*" element={<ComingSoon title="Danh mục sản phẩm" />} />
           <Route path="/admin/*" element={<ComingSoon title="Khu vực quản trị" />} />
           <Route path="*" element={<ComingSoon title="Không tìm thấy trang" />} />
@@ -921,6 +929,11 @@ function App() {
       </div>
     </BrowserRouter>
   )
+}
+
+function OrderDetailRoute() {
+  const { orderId } = useParams()
+  return <OrdersPage orderId={orderId} />
 }
 
 export default App
