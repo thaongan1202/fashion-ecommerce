@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 /** API public cho Guest/Customer (Member 3 dùng cho trang sản phẩm + review). */
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/catalog-public")
 public class PublicCatalogController {
     private final CatalogService catalog;
     private final ProductService products;
