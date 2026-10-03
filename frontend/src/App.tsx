@@ -12,6 +12,7 @@ import { getDemoSession, getDemoUsers, loginDemo, logoutDemo } from './api/demoA
 import { getReviewReminders } from './api/products'
 import type { DemoSession, DemoUser } from './types/auth'
 import type { ReviewReminder } from './types/product'
+import { AdminModule } from './admin/AdminModule'
 
 type RegistrationForm = {
   fullName: string
@@ -954,6 +955,7 @@ function App() {
           <Route path="/products/*" element={<ComingSoon title="Danh mục sản phẩm" />} />
           <Route path="/admin/*" element={<ComingSoon title="Khu vực quản trị" />} />
           <Route path="/products/:productId/reviews" element={<ReviewsPage />} />
+            <Link to="/admin/reviews">Quản trị đánh giá</Link>
           <Route path="*" element={<ComingSoon title="Không tìm thấy trang" />} />
         </Routes>
         <footer className="site-footer"><span>HCMUTE · Công nghệ Phần mềm</span><span>Nhóm 6</span></footer>
