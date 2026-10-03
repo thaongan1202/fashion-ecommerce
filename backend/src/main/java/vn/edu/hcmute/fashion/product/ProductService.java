@@ -6,7 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-@Service
+@Service("customerProductService")
 public class ProductService {
     private final ProductRepository repository;
     public ProductService(ProductRepository repository) { this.repository = repository; }

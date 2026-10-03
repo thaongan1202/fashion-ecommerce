@@ -7,7 +7,7 @@ import java.math.BigDecimal;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
-@Repository
+@Repository("customerProductRepository")
 class ProductRepository {
     private final JdbcTemplate jdbc;
 
