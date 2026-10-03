@@ -2,9 +2,16 @@ import { useEffect, useState } from 'react'
 import type { FormEvent, InputHTMLAttributes } from 'react'
 import { BrowserRouter, Link, Route, Routes, useParams } from 'react-router-dom'
 import { AdminOrdersPage, CartPage, CheckoutPage, OrdersPage } from './OrderPages'
+import type { FormEvent } from 'react'
+import { BrowserRouter, Link, Route, Routes } from 'react-router-dom'
 import './App.css'
-
-type ApiStatus = 'idle' | 'checking' | 'online' | 'offline'
+import { ProductListPage } from './pages/ProductListPage'
+import { ProductDetailPage } from './pages/ProductDetailPage'
+import { AdminReviewsPage } from './pages/AdminReviewsPage'
+import { getDemoSession, getDemoUsers, loginDemo, logoutDemo } from './api/demoAuth'
+import { getReviewReminders } from './api/products'
+import type { DemoSession, DemoUser } from './types/auth'
+import type { ReviewReminder } from './types/product'
 
 type RegistrationForm = {
   fullName: string
@@ -70,46 +77,17 @@ function PasswordField({ label, ...inputProps }: PasswordFieldProps) {
 }
 
 function HomePage() {
-  const [apiStatus, setApiStatus] = useState<ApiStatus>('idle')
-
-  async function checkApi() {
-    setApiStatus('checking')
-    try {
-      const response = await fetch('/api/health')
-      if (!response.ok) throw new Error('Backend returned an error')
-      setApiStatus('online')
-    } catch {
-      setApiStatus('offline')
-    }
-  }
-
   return (
     <main className="page-shell">
       <section className="hero-card">
         <p className="eyebrow">THỜI TRANG · HCMUTE</p>
         <h1>Mặc đẹp mỗi ngày.</h1>
-        <p className="hero-copy">
-          Không gian dự án đã sẵn sàng. Nhóm có thể bắt đầu phát triển danh mục,
-          giỏ hàng, đặt hàng và trang quản trị theo hợp đồng API chung.
-        </p>
+        <p className="hero-copy">Khám phá những thiết kế được tuyển chọn cho phong cách mỗi ngày.</p>
         <div className="hero-actions">
           <Link className="button button-primary" to="/products">Xem sản phẩm</Link>
-          <button className="button button-secondary" onClick={checkApi} disabled={apiStatus === 'checking'}>
-            {apiStatus === 'checking' ? 'Đang kiểm tra…' : 'Kiểm tra backend'}
-          </button>
         </div>
-        <p className={`api-status api-status-${apiStatus}`} aria-live="polite">
-          {apiStatus === 'idle' && 'Chưa kiểm tra trạng thái backend.'}
-          {apiStatus === 'checking' && 'Đang kết nối tới API…'}
-          {apiStatus === 'online' && 'Backend đang hoạt động.'}
-          {apiStatus === 'offline' && 'Chưa kết nối được. Hãy chạy Spring Boot ở cổng 8080.'}
-        </p>
       </section>
-      <section className="starter-grid" aria-label="Project modules">
-        <article><span>01</span><h2>Khám phá</h2><p>Danh mục, tìm kiếm và bộ lọc sản phẩm.</p></article>
-        <article><span>02</span><h2>Mua sắm</h2><p>Biến thể, giỏ hàng và thanh toán COD.</p></article>
-        <article><span>03</span><h2>Quản trị</h2><p>Công cụ vận hành dành cho Admin.</p></article>
-      </section>
+      <ProductListPage featured />
     </main>
   )
 }
@@ -891,6 +869,39 @@ function ComingSoon({ title }: { title: string }) {
 }
 
 function App() {
+  const [demoUser, setDemoUser] = useState<DemoSession | null>(null)
+  const [demoUsers, setDemoUsers] = useState<DemoUser[]>([])
+  const [selectedEmail, setSelectedEmail] = useState('')
+  const [showLogin, setShowLogin] = useState(false)
+  const [authError, setAuthError] = useState('')
+  const [reviewReminders, setReviewReminders] = useState<ReviewReminder[]>([])
+
+  useEffect(() => {
+    getDemoUsers().then((users) => { setDemoUsers(users); setSelectedEmail(users[0]?.email ?? '') }).catch(() => setDemoUsers([]))
+    getDemoSession().then((session) => setDemoUser(session.userId ? session : null)).catch(() => setDemoUser(null))
+  }, [])
+
+  useEffect(() => {
+    if (!demoUser?.userId) { setReviewReminders([]); return }
+    let active = true
+    const refreshReminders = () => getReviewReminders()
+      .then((reminders) => { if (active) setReviewReminders(reminders) })
+      .catch(() => { if (active) setReviewReminders([]) })
+    refreshReminders()
+    const timer = window.setInterval(refreshReminders, 15000)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [demoUser?.userId])
+
+  async function handleLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setAuthError('')
+    try { setDemoUser(await loginDemo(selectedEmail)); setShowLogin(false) }
+    catch (reason) { setAuthError(reason instanceof Error ? reason.message : 'Đăng nhập demo thất bại.') }
+  }
+
+  async function handleLogout() {
+    await logoutDemo(); setDemoUser(null)
+  }
+
   return (
     <BrowserRouter>
       <div className="app-frame">
@@ -907,9 +918,28 @@ function App() {
             <Link to="/cart">Giỏ hàng</Link>
             <Link to="/orders">Đơn hàng</Link>
             <Link to="/admin/orders">Quản trị đơn hàng</Link>
+            <Link to="/products/1/reviews">Đánh giá sản phẩm</Link>
           </nav>
+          <div className="demo-auth">
+            {demoUser ? <><span>Xin chào, {demoUser.fullName}</span><button onClick={handleLogout}>Đăng xuất</button></> : <>
+              <button onClick={() => { setShowLogin((value) => !value); setAuthError('') }}>Đăng nhập demo</button>
+              {showLogin && <form className="demo-login-panel" onSubmit={handleLogin}>
+                <strong>Chọn tài khoản kiểm thử</strong>
+                <select required value={selectedEmail} onChange={(event) => setSelectedEmail(event.target.value)}>
+                  {demoUsers.map((user) => <option value={user.email} key={user.id}>{user.fullName} — {user.email}</option>)}
+                </select>
+                <small>Chọn Buyer/Visitor để thử review hoặc Demo Admin để duyệt.</small>
+                {authError && <span className="auth-error" role="alert">{authError}</span>}
+                <button type="submit" disabled={!selectedEmail}>Đăng nhập</button>
+              </form>}
+            </>}
+          </div>
           <span className="header-note">Đồ án CNPM · 2026</span>
         </header>
+        {reviewReminders.length > 0 && <aside className="review-reminder" role="status" aria-live="polite">
+          <strong>Đơn hàng đã giao thành công. Mời bạn đánh giá sản phẩm:</strong>
+          <div>{reviewReminders.map((item) => <Link to={`/products/${item.productId}`} key={item.productId}>{item.productName}</Link>)}</div>
+        </aside>}
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/register" element={<RegisterPage />} />
@@ -923,6 +953,7 @@ function App() {
           <Route path="/admin/orders" element={<AdminOrdersPage />} />
           <Route path="/products/*" element={<ComingSoon title="Danh mục sản phẩm" />} />
           <Route path="/admin/*" element={<ComingSoon title="Khu vực quản trị" />} />
+          <Route path="/products/:productId/reviews" element={<ReviewsPage />} />
           <Route path="*" element={<ComingSoon title="Không tìm thấy trang" />} />
         </Routes>
         <footer className="site-footer"><span>HCMUTE · Công nghệ Phần mềm</span><span>Nhóm 6</span></footer>

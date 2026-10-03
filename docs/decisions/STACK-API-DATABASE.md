@@ -40,13 +40,21 @@ Phạm vi: dựng skeleton và đóng băng các hợp đồng để năm thành
 | Admin user | `GET /api/admin/users`; `PUT /api/admin/users/{userId}/status` | Admin | Member 5; Member 1 sở hữu User/auth |
 | Dashboard | `GET /api/admin/dashboard` | Admin | Member 5; dữ liệu Member 2/4 |
 
+### Product read endpoints
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/products` | Public | Danh sách, tìm kiếm và lọc sản phẩm |
+| `GET` | `/api/products/{id}` | Public | Chi tiết sản phẩm |
+| `GET` | `/api/products/{id}/related` | Public | Sản phẩm liên quan |
+
 ### Payload liên module quan trọng
 
 - `POST /api/cart/items`: `{ "variantId": 123, "quantity": 2 }`.
 - `POST /api/vouchers/apply`: `{ "code": "WELCOME" }`; backend tự lấy cart đang đăng nhập và trả `{ "valid": true, "discountAmount": 50000, "totalAfterDiscount": 450000 }` hoặc lỗi nghiệp vụ.
 - `POST /api/orders`: `{ "addressId": 44, "voucherCode": "WELCOME" }`; Member 4 sở hữu toàn transaction và gọi service Voucher của Member 5 bên trong transaction đó. Chỉ tăng `used_count` sau khi Order/Items tạo thành công; rollback hết khi lỗi.
 - Admin status update gửi `{ "status": "PROCESSING", "note": "..." }`; service kiểm tra transition hợp lệ.
-- Review status update gửi `{ "status": "APPROVED" }` hoặc `HIDDEN`.
+- Admin review moderation: `GET /api/admin/reviews` lấy review `PENDING`; `PATCH /api/admin/reviews/{reviewId}/status` với `{ "status": "APPROVED" }` hoặc `{ "status": "HIDDEN" }`.
 
 ### Customer registration verification
 
@@ -61,9 +69,9 @@ Phạm vi: dựng skeleton và đóng băng các hợp đồng để năm thành
 - Product status: `ACTIVE`, `INACTIVE`, `DELETED`; Variant size/color nullable; mọi Product cần ít nhất một Variant (kiểm tra ở service/admin flow).
 - Order status: `PENDING`, `PROCESSING`, `SHIPPING`, `DELIVERED`, `CANCELLED`; COD là payment method hiện thực duy nhất.
 - Voucher thêm `is_active`, vì yêu cầu Admin phải tắt mã nhưng bảng blueprint chưa có field trạng thái. Mã voucher unique. Admin tắt thay vì xóa cứng voucher đã được dùng.
-- Review status: `PENDING`, `APPROVED`, `HIDDEN`; review mới chờ duyệt. Đây là lựa chọn cần nhóm xác nhận vì blueprint để moderation là SHOULD và chưa chốt visibility mặc định.
+- Review status: `PENDING`, `APPROVED`, `HIDDEN`; review mới hoặc vừa chỉnh sửa ở trạng thái `PENDING`. Chỉ Admin được chuyển sang `APPROVED` hoặc `HIDDEN`; API công khai chỉ trả review `APPROVED`.
 - Ràng buộc stock/rating/quantity, SKU unique, review unique user-product, một Cart/user, tối đa một default address/user, FK restrict/cascade và index truy vấn phổ biến được khai báo trong V1 migration.
-- User bị khóa không thể đăng nhập; ảnh upload lưu local trong giai đoạn demo và database lưu URL. Chốt kích thước/loại file với Member 2.
+- Review images are stored locally; the database stores the URL. Accepted formats are JPEG, PNG, and WebP, with a 5 MB limit.
 
 ## Handoff cần từng owner xác nhận
 
