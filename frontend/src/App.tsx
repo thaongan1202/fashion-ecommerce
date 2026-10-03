@@ -2,8 +2,6 @@ import { useEffect, useState } from 'react'
 import type { FormEvent, InputHTMLAttributes } from 'react'
 import { BrowserRouter, Link, Route, Routes, useParams } from 'react-router-dom'
 import { AdminOrdersPage, CartPage, CheckoutPage, OrdersPage } from './OrderPages'
-import type { FormEvent } from 'react'
-import { BrowserRouter, Link, Route, Routes } from 'react-router-dom'
 import './App.css'
 import { ProductListPage } from './pages/ProductListPage'
 import { ProductDetailPage } from './pages/ProductDetailPage'
@@ -952,10 +950,14 @@ function App() {
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/orders/:orderId" element={<OrderDetailRoute />} />
           <Route path="/admin/orders" element={<AdminOrdersPage />} />
-          <Route path="/products/*" element={<ComingSoon title="Danh mục sản phẩm" />} />
-          <Route path="/admin/*" element={<ComingSoon title="Khu vực quản trị" />} />
-          <Route path="/products/:productId/reviews" element={<ReviewsPage />} />
-            <Link to="/admin/reviews">Quản trị đánh giá</Link>
+          
+          <Route path="/products" element={<ProductListPage />} />
+          <Route path="/products/:productId" element={<ProductDetailPage demoUser={null} />} />
+          <Route path="/admin/reviews" element={<AdminReviewsPage />} />
+          <Route path="/admin/*" element={<AdminModule />} />
+
+          
+                      <Link to="/admin/reviews">Quản trị đánh giá</Link>
           <Route path="*" element={<ComingSoon title="Không tìm thấy trang" />} />
         </Routes>
         <footer className="site-footer"><span>HCMUTE · Công nghệ Phần mềm</span><span>Nhóm 6</span></footer>
