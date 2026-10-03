@@ -35,8 +35,8 @@ Mở một Tab Terminal mới (giữ nguyên thư mục gốc của dự án), s
 cd backend
 export DATABASE_URL="jdbc:postgresql://localhost:5433/fashion_ecommerce"
 export JWT_SECRET=$(openssl rand -base64 32)
-export MAIL_USERNAME="phamthithaongan1226@gmail.com"
-export MAIL_PASSWORD="Th@ongan!2o2"
+export MAIL_USERNAME="your_mail@gmail.com"
+export MAIL_PASSWORD="password"
 
 ./mvnw clean spring-boot:run
 ```
@@ -52,8 +52,8 @@ $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
 $rng.GetBytes($bytes)
 $env:JWT_SECRET = [Convert]::ToBase64String($bytes)
 $rng.Dispose()
-$env:MAIL_USERNAME = "phamthithaongan1226@gmail.com"
-$env:MAIL_PASSWORD = "Th@ongan!2o2"
+$env:MAIL_USERNAME = "your_mail@gmail.com"
+$env:MAIL_PASSWORD = "password"
 
 .\mvnw.cmd clean spring-boot:run
 ```
