@@ -125,6 +125,11 @@ h1, h2 { font-family: Georgia, 'Times New Roman', serif; }
 .rating-summary span { color: #a76743; letter-spacing: .06em; white-space: nowrap; }
 .variant-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
 .variant-list span { padding: 9px 12px; border: 1px solid #ded6cc; border-radius: 4px; color: #645c53; font-size: 12px; line-height: 1.5; }
+.purchase-panel { display: grid; grid-template-columns: minmax(0, 1fr) 110px; gap: 12px; margin-top: 24px; align-items: end; }
+.purchase-panel label { display: grid; gap: 7px; color: #524b42; font-size: 12px; font-weight: 600; }
+.purchase-panel select, .purchase-panel input { width: 100%; min-height: 42px; padding: 0 10px; border: 1px solid #ded4c7; border-radius: 4px; background: #fffdfa; color: #28251f; font: inherit; font-weight: 400; }
+.purchase-panel > button { min-height: 42px; grid-column: 1 / -1; }
+.purchase-panel .notice { grid-column: 1 / -1; margin: 0; }
 .review-section, .related-section { margin-top: 64px; padding-top: 32px; border-top: 1px solid #e2dacf; }
 .review-form { display: grid; grid-template-columns: 180px 1fr auto; align-items: end; gap: 14px; margin: 26px 0; }
 .review-form textarea { min-height: 42px; resize: vertical; }
@@ -246,6 +251,7 @@ h1, h2 { font-family: Georgia, 'Times New Roman', serif; }
   .search-field, .search-field input { width: 100%; }
   .detail-layout { grid-template-columns: 1fr; gap: 24px; }
   .detail-image { min-height: 390px; }
+  .purchase-panel { grid-template-columns: minmax(0, 1fr) 90px; }
   .review-form, .review-form-quick { grid-template-columns: 1fr; }
   .review-form-quick .review-comment-field { grid-column: auto; }
   .starter-grid article { display: grid; grid-template-columns: 40px 1fr; column-gap: 10px; }

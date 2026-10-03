@@ -2,13 +2,13 @@
 
 ## Authentication handoff (Member 1)
 
-Controllers use `Authentication.getName()` as the authenticated user's normalized email. JWT `sub` must therefore contain the user's email, or Member 1 should adapt this handoff before merging. Required access rules:
+Controllers read the authenticated user's numeric ID from the verified JWT `sub`. Auth currently issues `sub = userId`; Cart/Order services validate the active account by that ID and do not resolve the principal through email. Required access rules:
 
 - `GET/POST /api/cart/**`, `PUT/DELETE /api/cart/items/**`: authenticated `CUSTOMER`.
 - `/api/orders/**`: authenticated `CUSTOMER`.
 - `/api/admin/orders/**`: authenticated `ADMIN`.
 
-The service independently resolves the active user from `users` and checks Admin role for admin operations. The current shared `SecurityConfiguration` still denies every route except health, so the endpoints remain inaccessible until Member 1 integrates these matchers and JWT authentication.
+The service validates the active user by `users.id` and checks the Admin role in the database for admin operations. `SecurityConfiguration` requires role `CUSTOMER` for `/api/cart/**` and `/api/orders/**`; `/api/admin/**` requires `ADMIN`.
 
 ## Voucher handoff (Member 5)
 
@@ -22,7 +22,7 @@ Cart and checkout read these V1 fields: `product_variants(id, product_id, size, 
 
 ## Frontend handoff
 
-Checkout reads `GET /api/users/me/addresses`, expecting `id`, `recipientName`, `phone`, `addressLine`, and `isDefault`. The frontend reads a bearer token from `localStorage.accessToken` or `localStorage.token`; align that key with Member 1's login response before integration. Product detail pages should add items with `{ "variantId": 123, "quantity": 1 }`.
+Checkout reads `GET /api/users/me/addresses`, expecting `id`, `recipientName`, `phone`, `addressLine`, and `defaultAddress`. The shared frontend API helper reads the JWT from `localStorage.fashionAccessToken` and sends it as a Bearer token. Product detail pages add items with `{ "variantId": 123, "quantity": 1 }`.
 
 ## State transitions implemented
 

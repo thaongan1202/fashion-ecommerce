@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { apiJson } from '../api/client'
 
 type Voucher = { id: number; code: string; discountType: 'PERCENT' | 'FIXED'; discountValue: number; minOrderValue: number; expiryDate: string; usageLimit: number; usedCount: number; active: boolean; createdAt: string }
 type User = { id: number; fullName: string; email: string; phone?: string; role: 'CUSTOMER' | 'ADMIN'; status: 'ACTIVE' | 'LOCKED'; createdAt: string }
@@ -9,17 +10,7 @@ type Dashboard = { activeCustomers: number; activeProducts: number; totalOrders:
 type VoucherForm = { code: string; discountType: 'PERCENT' | 'FIXED'; discountValue: string; minOrderValue: string; expiryDate: string; usageLimit: string; active: boolean }
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = localStorage.getItem('accessToken') ?? localStorage.getItem('token')
-  const response = await fetch(path, {
-    ...init,
-    credentials: 'include',
-    headers: { ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init?.headers },
-  })
-  if (!response.ok) {
-    const body = await response.json().catch(() => null)
-    throw new Error(body?.message ?? `Yêu cầu thất bại (${response.status})`)
-  }
-  return response.status === 204 ? undefined as T : response.json()
+  return apiJson<T>(path, { ...init, requireAuth: true })
 }
 
 const money = (value: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(value)

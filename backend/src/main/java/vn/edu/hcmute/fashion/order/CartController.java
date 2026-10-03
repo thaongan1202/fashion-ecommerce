@@ -1,7 +1,8 @@
 package vn.edu.hcmute.fashion.order;
 
 import static vn.edu.hcmute.fashion.order.OrderDtos.*;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -9,8 +10,8 @@ import org.springframework.web.bind.annotation.*;
 public class CartController {
     private final OrderService service;
     public CartController(OrderService service) { this.service = service; }
-    @GetMapping public Cart get(Authentication auth) { return service.getCart(auth.getName()); }
-    @PostMapping("/items") public Cart add(Authentication auth, @RequestBody AddCartItem body) { return service.addItem(auth.getName(), body); }
-    @PutMapping("/items/{itemId}") public Cart update(Authentication auth, @PathVariable long itemId, @RequestBody UpdateCartItem body) { return service.updateItem(auth.getName(), itemId, body); }
-    @DeleteMapping("/items/{itemId}") public Cart remove(Authentication auth, @PathVariable long itemId) { return service.removeItem(auth.getName(), itemId); }
+    @GetMapping public Cart get(@AuthenticationPrincipal Jwt jwt) { return service.getCart(OrderPrincipal.userId(jwt)); }
+    @PostMapping("/items") public Cart add(@AuthenticationPrincipal Jwt jwt, @RequestBody AddCartItem body) { return service.addItem(OrderPrincipal.userId(jwt), body); }
+    @PutMapping("/items/{itemId}") public Cart update(@AuthenticationPrincipal Jwt jwt, @PathVariable long itemId, @RequestBody UpdateCartItem body) { return service.updateItem(OrderPrincipal.userId(jwt), itemId, body); }
+    @DeleteMapping("/items/{itemId}") public Cart remove(@AuthenticationPrincipal Jwt jwt, @PathVariable long itemId) { return service.removeItem(OrderPrincipal.userId(jwt), itemId); }
 }
