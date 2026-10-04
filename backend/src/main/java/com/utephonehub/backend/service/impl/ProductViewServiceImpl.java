@@ -111,6 +111,9 @@ public class ProductViewServiceImpl implements IProductViewService {
             
             // Get review stats for all products (for rating filter and sort)
             Map<Long, ReviewSummary> reviewStats = reviewStats(allProducts);
+            Map<Long, Double> discounts = Boolean.TRUE.equals(request.getHasDiscountOnly())
+                    ? promotionService.getBestDiscountsForProducts(allProducts)
+                    : Map.of();
             
             // Apply additional filters in service layer
             allFiltered = allProducts.stream()
@@ -121,7 +124,7 @@ public class ProductViewServiceImpl implements IProductViewService {
                     .filter(p -> matchMetadata(p.getMetadata(), request.getTargetAudienceOptions(), ProductMetadata::getTargetAudience))
                     .filter(p -> matchRating(p, request.getMinRating(), request.getMaxRating(), reviewStats))
                     .filter(p -> matchInStock(p, request.getInStockOnly()))
-                    .filter(p -> matchHasDiscount(p, request.getHasDiscountOnly()))
+                    .filter(p -> matchHasDiscount(p, request.getHasDiscountOnly(), discounts))
                     .collect(Collectors.toList());
             
             totalElements = allFiltered.size();
@@ -149,6 +152,9 @@ public class ProductViewServiceImpl implements IProductViewService {
             
             // Get review stats for minRating filter
             Map<Long, ReviewSummary> reviewStats = reviewStats(basePage.getContent());
+            Map<Long, Double> discounts = Boolean.TRUE.equals(request.getHasDiscountOnly())
+                    ? promotionService.getBestDiscountsForProducts(basePage.getContent())
+                    : Map.of();
             
             allFiltered = basePage.getContent().stream()
                     .filter(p -> matchTemplateAttribute(p, request.getColorOptions(), ProductTemplate::getColor))
@@ -158,7 +164,7 @@ public class ProductViewServiceImpl implements IProductViewService {
                     .filter(p -> matchMetadata(p.getMetadata(), request.getTargetAudienceOptions(), ProductMetadata::getTargetAudience))
                     .filter(p -> matchRating(p, request.getMinRating(), request.getMaxRating(), reviewStats))
                     .filter(p -> matchInStock(p, request.getInStockOnly()))
-                    .filter(p -> matchHasDiscount(p, request.getHasDiscountOnly()))
+                    .filter(p -> matchHasDiscount(p, request.getHasDiscountOnly(), discounts))
                     .collect(Collectors.toList());
             
             totalElements = basePage.getTotalElements();
@@ -989,14 +995,9 @@ public class ProductViewServiceImpl implements IProductViewService {
      * @param hasDiscountOnly If true, only return products with active DISCOUNT promotions
      * @return true if hasDiscountOnly is false/null or product has discount
      */
-    private boolean matchHasDiscount(Product product, Boolean hasDiscountOnly) {
+    private boolean matchHasDiscount(Product product, Boolean hasDiscountOnly, Map<Long, Double> discounts) {
         if (hasDiscountOnly == null || !hasDiscountOnly) return true;
-        
-        // Use getBestDiscountForProduct to correctly check DISCOUNT type promotions
-        Long categoryId = product.getCategory() != null ? product.getCategory().getId() : null;
-        Long brandId = product.getBrand() != null ? product.getBrand().getId() : null;
-        Double discountPercent = promotionService.getBestDiscountForProduct(product.getId(), categoryId, brandId);
-        
+        Double discountPercent = discounts.get(product.getId());
         return discountPercent != null && discountPercent > 0;
     }
 

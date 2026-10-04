@@ -5,6 +5,7 @@ import com.utephonehub.backend.dto.response.review.ProductReviewsResponse;
 import com.utephonehub.backend.dto.response.review.ReviewOrderOption;
 import com.utephonehub.backend.dto.response.review.ReviewResponse;
 import com.utephonehub.backend.entity.Order;
+import com.utephonehub.backend.entity.OrderItem;
 import com.utephonehub.backend.entity.Product;
 import com.utephonehub.backend.entity.Review;
 import com.utephonehub.backend.entity.User;
@@ -24,7 +25,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
@@ -34,24 +37,33 @@ public class ReviewServiceImpl implements IReviewService {
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
     private final OrderRepository orderRepository;
+    private final ReviewImageStorageService reviewImageStorageService;
 
     @Override
     @Transactional(readOnly = true)
     public ProductReviewsResponse getProductReviews(Long productId, Long userId) {
         getProduct(productId);
 
-        List<Review> reviews = reviewRepository.findByProductIdOrderByCreatedAtDesc(productId);
+        List<Review> reviews = reviewRepository.findTop30ByProductIdOrderByCreatedAtDesc(productId);
         List<ReviewResponse> reviewResponses = reviews.stream()
                 .map(this::toReviewResponse)
                 .collect(Collectors.toList());
-        double averageRating = reviews.stream()
-                .mapToInt(Review::getRating)
-                .average()
-                .orElse(0.0);
+        Double averageRatingResult = reviewRepository.calculateAverageRatingByProductId(productId);
+        double averageRating = averageRatingResult == null ? 0.0 : averageRatingResult;
+        int totalReviews = reviewRepository.countReviewsByProductId(productId).intValue();
 
-        List<ReviewOrderOption> eligibleOrders = userId == null
+        List<Order> deliveredOrders = userId == null
                 ? List.of()
-                : getEligibleOrders(productId, userId);
+                : reviewRepository.findDeliveredOrdersWithProduct(userId, productId, OrderStatus.DELIVERED);
+        List<Long> deliveredOrderIds = deliveredOrders.stream().map(Order::getId).toList();
+        List<Long> reviewedOrderIds = deliveredOrderIds.isEmpty()
+                ? List.of()
+                : reviewRepository.findReviewedOrderIds(userId, productId, deliveredOrderIds);
+        Set<Long> reviewedOrderIdSet = Set.copyOf(reviewedOrderIds);
+        List<ReviewOrderOption> eligibleOrders = deliveredOrders.stream()
+                .filter(order -> !reviewedOrderIdSet.contains(order.getId()))
+                .map(order -> toReviewOrderOption(order, productId))
+                .toList();
 
         String eligibilityMessage;
         if (userId == null) {
@@ -65,9 +77,10 @@ public class ReviewServiceImpl implements IReviewService {
         return ProductReviewsResponse.builder()
                 .reviews(reviewResponses)
                 .averageRating(averageRating)
-                .totalReviews(reviewResponses.size())
+                .totalReviews(totalReviews)
                 .canReview(!eligibleOrders.isEmpty())
                 .eligibleOrders(eligibleOrders)
+                .reviewedOrderIds(reviewedOrderIds)
                 .eligibilityMessage(eligibilityMessage)
                 .build();
     }
@@ -93,12 +106,32 @@ public class ReviewServiceImpl implements IReviewService {
             throw new ConflictException("Bạn đã đánh giá sản phẩm này trong đơn hàng đã chọn");
         }
 
+        Order order = orderRepository.findById(request.getOrderId())
+                .orElseThrow(() -> new BadRequestException("Không tìm thấy đơn hàng đã giao"));
+        OrderItem purchasedItem = order.getItems().stream()
+                .filter(item -> item.getProduct().getId().equals(productId))
+                .findFirst()
+                .orElseThrow(() -> new BadRequestException("Đơn hàng không có sản phẩm này"));
+
+        List<String> imageUrls = request.getImageUrls() == null ? List.of() : request.getImageUrls();
+        String ownedUploadPrefix = "/uploads/reviews/" + userId + "/";
+        if (imageUrls.stream().anyMatch(url -> url == null || !url.startsWith(ownedUploadPrefix)
+                || url.contains("..") || url.contains("\\"))) {
+            throw new BadRequestException("Ảnh đánh giá không hợp lệ hoặc không thuộc tài khoản của bạn");
+        }
+
         Review review = Review.builder()
                 .user(user)
                 .product(product)
-                .order(orderRepository.getReferenceById(request.getOrderId()))
+                .order(order)
                 .rating(request.getRating())
                 .comment(request.getComment().trim())
+                .materialRating(request.getMaterialRating())
+                .fitRating(request.getFitRating())
+                .colorRating(request.getColorRating())
+                .productColor(purchasedItem.getColor())
+                .productSize(purchasedItem.getSize())
+                .imageUrls(imageUrls)
                 .build();
 
         try {
@@ -110,14 +143,17 @@ public class ReviewServiceImpl implements IReviewService {
         return getProductReviews(productId, userId);
     }
 
-    private List<ReviewOrderOption> getEligibleOrders(Long productId, Long userId) {
-        return reviewRepository.findDeliveredOrdersWithProduct(userId, productId, OrderStatus.DELIVERED).stream()
-                .filter(order -> !reviewRepository.existsByUserIdAndProductIdAndOrderId(userId, productId, order.getId()))
-                .map(order -> ReviewOrderOption.builder()
-                        .orderId(order.getId())
-                        .orderCode(order.getOrderCode())
-                        .build())
-                .collect(Collectors.toList());
+    @Override
+    @Transactional(readOnly = true)
+    public List<String> uploadReviewImages(Long productId, Long orderId, Long userId, List<MultipartFile> files) {
+        if (userId == null) {
+            throw new UnauthorizedException("Vui lòng đăng nhập để tải ảnh đánh giá");
+        }
+        getProduct(productId);
+        if (!reviewRepository.existsDeliveredPurchase(orderId, userId, productId, OrderStatus.DELIVERED)) {
+            throw new BadRequestException("Chỉ có thể tải ảnh cho sản phẩm trong đơn hàng đã giao thành công");
+        }
+        return reviewImageStorageService.store(userId, files);
     }
 
     private Product getProduct(Long productId) {
@@ -133,6 +169,25 @@ public class ReviewServiceImpl implements IReviewService {
                 .comment(review.getComment())
                 .createdAt(review.getCreatedAt())
                 .verifiedPurchase(review.getOrder() != null)
+                .materialRating(review.getMaterialRating())
+                .fitRating(review.getFitRating())
+                .colorRating(review.getColorRating())
+                .productColor(review.getProductColor())
+                .productSize(review.getProductSize())
+                .imageUrls(review.getImageUrls() == null ? List.of() : List.copyOf(review.getImageUrls()))
+                .build();
+    }
+
+    private ReviewOrderOption toReviewOrderOption(Order order, Long productId) {
+        OrderItem item = order.getItems().stream()
+                .filter(orderItem -> orderItem.getProduct().getId().equals(productId))
+                .findFirst()
+                .orElse(null);
+        return ReviewOrderOption.builder()
+                .orderId(order.getId())
+                .orderCode(order.getOrderCode())
+                .productColor(item == null ? null : item.getColor())
+                .productSize(item == null ? null : item.getSize())
                 .build();
     }
 }

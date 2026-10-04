@@ -139,6 +139,8 @@ export interface AdminOrderItemDto {
   productName: string;
   productThumbnail?: string;
   quantity: number;
+  color?: string | null;
+  size?: string | null;
   price: number;
   totalPrice: number;
   createdAt: string;

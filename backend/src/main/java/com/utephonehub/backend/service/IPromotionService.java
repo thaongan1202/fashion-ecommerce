@@ -2,8 +2,10 @@ package com.utephonehub.backend.service;
 
 import com.utephonehub.backend.dto.request.PromotionRequest;
 import com.utephonehub.backend.dto.response.PromotionResponse;
+import com.utephonehub.backend.entity.Product;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Interface for Promotion Service operations
@@ -51,4 +53,6 @@ public interface IPromotionService {
      * @return Best discount percentage (0-100), or null if no discount
      */
     Double getBestDiscountForProduct(Long productId, Long categoryId, Long brandId);
+
+    Map<Long, Double> getBestDiscountsForProducts(List<Product> products);
 }

@@ -240,6 +240,12 @@ export function AdminOrderDetailModal({ orderId, onClose, onStatusUpdate }: Admi
                                                 <p className="text-sm text-muted-foreground">
                                                     {formatPrice(item.price)} x {item.quantity}
                                                 </p>
+                                                {(item.color || item.size) && (
+                                                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                                                        {item.color && <span className="rounded-full bg-secondary px-2 py-1">Màu: {item.color}</span>}
+                                                        {item.size && <span className="rounded-full bg-secondary px-2 py-1">Size: {item.size}</span>}
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="text-right">
                                                 <p className="font-semibold text-primary">{formatPrice(item.totalPrice)}</p>

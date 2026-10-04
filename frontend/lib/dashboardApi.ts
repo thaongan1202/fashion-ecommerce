@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { dashboardAPI, getAuthToken } from './api'
+import { dashboardAPI, fetchWithAuth, getAuthToken } from './api'
 
 type OverviewState = {
   data: any | null
@@ -18,7 +18,7 @@ export async function fetchOrdersRaw(params: Record<string, any> = {}) {
   const url = `${base}/admin/dashboard/orders${qs ? `?${qs}` : ''}`
 
   try {
-    const res = await fetch(url, { headers })
+    const res = await fetchWithAuth(url, { headers })
     if (!res.ok) {
       // fallback to recent-orders endpoint
       const fallback = await dashboardAPI.getRecentOrders(params.limit || 10)

@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 
 // Constants
+const PRODUCTS_PER_PAGE = 20;
 const EXCLUDED_CATEGORY = 'Phụ kiện';
 
 interface ProductTableProps {
@@ -38,6 +39,9 @@ export function ProductTable({ filters, onEdit, onRefresh }: ProductTableProps) 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
   
   // Confirm dialog state
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -115,6 +119,8 @@ export function ProductTable({ filters, onEdit, onRefresh }: ProductTableProps) 
           keyword,
           categoryId: selectedCategory || filters.categoryId,
           brandId: selectedBrand || filters.brandId,
+          page,
+          size: PRODUCTS_PER_PAGE,
         });
       } else {
         // Only send keyword if it has at least 2 characters
@@ -129,6 +135,8 @@ export function ProductTable({ filters, onEdit, onRefresh }: ProductTableProps) 
           sortBy,
           sortDirection,
           includeDeleted: filters?.includeDeleted,
+          page,
+          size: PRODUCTS_PER_PAGE,
         };
         
         response = await getAllProductsAdmin(apiFilters);
@@ -136,6 +144,15 @@ export function ProductTable({ filters, onEdit, onRefresh }: ProductTableProps) 
       
       if (response.success && response.data) {
         setProducts(response.data as unknown as Product[]);
+        setTotalElements(response.totalElements);
+        setTotalPages(response.totalPages);
+        if (response.totalPages > 0 && page >= response.totalPages) {
+          setPage(response.totalPages - 1);
+        }
+      } else {
+        setProducts([]);
+        setTotalElements(0);
+        setTotalPages(0);
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Lỗi khi tải danh sách sản phẩm';
@@ -144,7 +161,7 @@ export function ProductTable({ filters, onEdit, onRefresh }: ProductTableProps) 
     } finally {
       setLoading(false);
     }
-  }, [filters, searchKeyword, selectedCategory, selectedBrand, sortBy, sortDirection]);
+  }, [filters, searchKeyword, selectedCategory, selectedBrand, sortBy, sortDirection, page]);
 
   useEffect(() => {
     loadProducts();
@@ -309,10 +326,14 @@ export function ProductTable({ filters, onEdit, onRefresh }: ProductTableProps) 
             onChange={(e) => setSearchInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
+                setPage(0);
                 setSearchKeyword(searchInput);
               }
             }}
-            onBlur={() => setSearchKeyword(searchInput)}
+            onBlur={() => {
+              setPage(0);
+              setSearchKeyword(searchInput);
+            }}
             className="w-full px-4 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
@@ -322,7 +343,10 @@ export function ProductTable({ filters, onEdit, onRefresh }: ProductTableProps) 
           {/* Category Filter */}
           <select
             value={selectedCategory || ''}
-            onChange={(e) => setSelectedCategory(e.target.value ? Number(e.target.value) : undefined)}
+            onChange={(e) => {
+              setPage(0);
+              setSelectedCategory(e.target.value ? Number(e.target.value) : undefined);
+            }}
             className="px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
           >
             <option value="">Tất cả danh mục</option>
@@ -334,7 +358,10 @@ export function ProductTable({ filters, onEdit, onRefresh }: ProductTableProps) 
           {/* Brand Filter */}
           <select
             value={selectedBrand || ''}
-            onChange={(e) => setSelectedBrand(e.target.value ? Number(e.target.value) : undefined)}
+            onChange={(e) => {
+              setPage(0);
+              setSelectedBrand(e.target.value ? Number(e.target.value) : undefined);
+            }}
             className="px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
           >
             <option value="">Tất cả thương hiệu</option>
@@ -348,6 +375,7 @@ export function ProductTable({ filters, onEdit, onRefresh }: ProductTableProps) 
             value={`${sortBy}-${sortDirection}`}
             onChange={(e) => {
               const [field, direction] = e.target.value.split('-');
+              setPage(0);
               setSortBy(field as any);
               setSortDirection(direction as 'asc' | 'desc');
             }}
@@ -547,6 +575,32 @@ export function ProductTable({ filters, onEdit, onRefresh }: ProductTableProps) 
         </tbody>
       </table>
       </div>
+
+      {totalElements > 0 && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            Trang {page + 1} / {totalPages} · {totalElements} sản phẩm
+          </p>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={loading || page <= 0}
+              onClick={() => setPage((current) => Math.max(0, current - 1))}
+            >
+              Trang trước
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={loading || page + 1 >= totalPages}
+              onClick={() => setPage((current) => Math.min(totalPages - 1, current + 1))}
+            >
+              Trang sau
+            </Button>
+          </div>
+        </div>
+      )}
 
       <ConfirmDialog
         open={confirmDialog.open}

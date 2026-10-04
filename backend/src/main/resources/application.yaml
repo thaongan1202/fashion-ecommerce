@@ -26,6 +26,11 @@ spring:
     init:
       mode: always
 
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 26MB
+
   data:
     redis:
       host: ${REDIS_HOST}
@@ -87,6 +92,10 @@ vnpay:
 # Frontend Configuration
 frontend:
   url: ${FRONTEND_URL}
+
+app:
+  review:
+    upload-dir: ${REVIEW_UPLOAD_DIR:uploads/reviews}
 
 server:
   port: 8081

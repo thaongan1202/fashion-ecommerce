@@ -2,10 +2,12 @@ package com.utephonehub.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -40,6 +42,28 @@ public class Review {
 
     @Column(columnDefinition = "TEXT")
     private String comment;
+
+    @Column(name = "material_rating")
+    private Integer materialRating;
+
+    @Column(name = "fit_rating")
+    private Integer fitRating;
+
+    @Column(name = "color_rating")
+    private Integer colorRating;
+
+    @Column(name = "product_color", length = 50)
+    private String productColor;
+
+    @Column(name = "product_size", length = 50)
+    private String productSize;
+
+    @ElementCollection
+    @CollectionTable(name = "review_images", joinColumns = @JoinColumn(name = "review_id"))
+    @OrderColumn(name = "image_order")
+    @Column(name = "image_url", nullable = false, length = 2048)
+    @Builder.Default
+    private List<String> imageUrls = new ArrayList<>();
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)

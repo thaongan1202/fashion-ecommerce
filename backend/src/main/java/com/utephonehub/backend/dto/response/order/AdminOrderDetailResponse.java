@@ -114,6 +114,12 @@ public class AdminOrderDetailResponse {
 		@Schema(description = "Quantity", example = "2")
 		private Integer quantity;
 
+		@Schema(description = "Purchased color variant")
+		private String color;
+
+		@Schema(description = "Purchased size variant")
+		private String size;
+
 		@Schema(description = "Unit price", example = "32990000.00")
 		private BigDecimal price;
 
@@ -142,7 +148,7 @@ public class AdminOrderDetailResponse {
 							.productId(item.getProduct() != null ? item.getProduct().getId() : null)
 							.productName(item.getProduct() != null ? item.getProduct().getName() : "Unknown Product")
 							.productThumbnail(item.getProduct() != null ? item.getProduct().getThumbnailUrl() : null)
-							.quantity(item.getQuantity()).price(item.getPrice())
+							.quantity(item.getQuantity()).color(item.getColor()).size(item.getSize()).price(item.getPrice())
 							.totalPrice(item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
 							.createdAt(item.getCreatedAt()).build();
 				}).collect(Collectors.toList()) : List.of()).createdAt(order.getCreatedAt())

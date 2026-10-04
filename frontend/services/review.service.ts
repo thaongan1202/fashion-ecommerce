@@ -1,4 +1,4 @@
-import { getAuthToken } from '@/lib/api';
+import { fetchWithAuth, getAuthToken } from '@/lib/api';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081/api/v1';
 
@@ -9,11 +9,19 @@ export interface ProductReview {
   comment: string;
   createdAt: string;
   verifiedPurchase: boolean;
+  materialRating?: number | null;
+  fitRating?: number | null;
+  colorRating?: number | null;
+  productColor?: string | null;
+  productSize?: string | null;
+  imageUrls: string[];
 }
 
 export interface ReviewOrderOption {
   orderId: number;
   orderCode: string;
+  productColor?: string | null;
+  productSize?: string | null;
 }
 
 export interface ProductReviewsResponse {
@@ -22,7 +30,18 @@ export interface ProductReviewsResponse {
   totalReviews: number;
   canReview: boolean;
   eligibleOrders: ReviewOrderOption[];
+  reviewedOrderIds: number[];
   eligibilityMessage: string;
+}
+
+export interface CreateProductReviewPayload {
+  orderId: number;
+  rating: number;
+  materialRating: number;
+  fitRating: number;
+  colorRating: number;
+  comment: string;
+  imageUrls: string[];
 }
 
 interface ApiResponse<T> {
@@ -38,7 +57,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const token = getAuthToken();
   if (token) headers.set('Authorization', `Bearer ${token}`);
 
-  const response = await fetch(url, { ...init, headers, cache: 'no-store' });
+  const response = await fetchWithAuth(url, { ...init, headers, cache: 'no-store' });
   const result = await response.json() as ApiResponse<T>;
 
   if (!response.ok || !result.success) {
@@ -54,10 +73,38 @@ export function getProductReviews(productId: number): Promise<ProductReviewsResp
 
 export function submitProductReview(
   productId: number,
-  payload: { orderId: number; rating: number; comment: string },
+  payload: CreateProductReviewPayload,
 ): Promise<ProductReviewsResponse> {
   return request(`${API_BASE_URL}/products/${productId}/reviews`, {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+export async function uploadReviewImages(productId: number, orderId: number, files: File[]): Promise<string[]> {
+  const formData = new FormData();
+  formData.append('orderId', String(orderId));
+  files.forEach((file) => formData.append('files', file));
+
+  const headers = new Headers();
+  const token = getAuthToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+
+  const response = await fetchWithAuth(`${API_BASE_URL}/products/${productId}/reviews/images`, {
+    method: 'POST',
+    headers,
+    body: formData,
+    cache: 'no-store',
+  });
+  const result = await response.json() as ApiResponse<string[]>;
+  if (!response.ok || !result.success) {
+    throw new Error(result.message || 'Không thể tải ảnh đánh giá.');
+  }
+  return result.data;
+}
+
+const API_ORIGIN = API_BASE_URL.replace(/\/api\/v1\/?$/, '');
+
+export function getReviewImageUrl(url: string): string {
+  return /^https?:\/\//i.test(url) ? url : `${API_ORIGIN}${url}`;
 }

@@ -21,12 +21,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    const handleExpiredSession = () => setUser(null);
+    window.addEventListener('auth:expired', handleExpiredSession);
+
     // Check if user is stored in localStorage
     const storedUser = getStoredUser();
     if (storedUser) {
       setUser(storedUser);
     }
     setIsLoading(false);
+    return () => window.removeEventListener('auth:expired', handleExpiredSession);
   }, []);
 
   const logout = () => {

@@ -41,6 +41,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Implementation of Product Service
@@ -351,10 +352,11 @@ public class ProductServiceImpl implements IProductService {
         }
 
         // Map to response DTOs and enrich with template data
+        Map<Long, Double> bestDiscounts = promotionService.getBestDiscountsForProducts(products.getContent());
         List<ProductListResponse> responseList = products.stream()
                 .map(product -> {
                     ProductListResponse response = productMapper.toListResponse(product);
-                    enrichListResponseWithTemplateData(response, product);
+                    enrichListResponseWithTemplateData(response, product, bestDiscounts.get(product.getId()));
                     // Set image count and images list
                     response.setImageCount(product.getImages() != null ? product.getImages().size() : 0);
                     if (product.getImages() != null && !product.getImages().isEmpty()) {
@@ -418,10 +420,11 @@ public class ProductServiceImpl implements IProductService {
         Page<Product> products = productRepository.findDeletedProducts(keyword, categoryId, brandId, pageable);
 
         // Map to response DTOs and enrich with template data
+        Map<Long, Double> bestDiscounts = promotionService.getBestDiscountsForProducts(products.getContent());
         List<ProductListResponse> responseList = products.stream()
                 .map(product -> {
                     ProductListResponse response = productMapper.toListResponse(product);
-                    enrichListResponseWithTemplateData(response, product);
+                    enrichListResponseWithTemplateData(response, product, bestDiscounts.get(product.getId()));
                     // Set image count and images list
                     response.setImageCount(product.getImages() != null ? product.getImages().size() : 0);
                     if (product.getImages() != null && !product.getImages().isEmpty()) {
@@ -569,7 +572,8 @@ public class ProductServiceImpl implements IProductService {
      * Stock = sum of stockQuantity across all active templates
      * Discount = best DISCOUNT promotion applicable to this product
      */
-    private void enrichListResponseWithTemplateData(ProductListResponse response, Product product) {
+    private void enrichListResponseWithTemplateData(
+            ProductListResponse response, Product product, Double discountPercent) {
         List<ProductTemplate> activeTemplates = product.getTemplates().stream()
                 .filter(ProductTemplate::getStatus)
                 .toList();
@@ -596,15 +600,7 @@ public class ProductServiceImpl implements IProductService {
         response.setPrice(lowestPrice);
         response.setStockQuantity(totalStock);
 
-        // Calculate and apply active DISCOUNT promotions
-        Long categoryId = product.getCategory() != null ? product.getCategory().getId() : null;
-        Long brandId = product.getBrand() != null ? product.getBrand().getId() : null;
-
-        Double discountPercent = promotionService.getBestDiscountForProduct(
-                product.getId(),
-                categoryId,
-                brandId);
-
+        // Apply the batch-loaded active promotion, if one was found.
         if (discountPercent != null && discountPercent > 0) {
             response.setDiscountPercent(discountPercent);
 

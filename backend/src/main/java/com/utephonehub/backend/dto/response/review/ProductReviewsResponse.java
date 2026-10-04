@@ -12,5 +12,6 @@ public class ProductReviewsResponse {
     Integer totalReviews;
     boolean canReview;
     List<ReviewOrderOption> eligibleOrders;
+    List<Long> reviewedOrderIds;
     String eligibilityMessage;
 }

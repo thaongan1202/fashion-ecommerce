@@ -8,4 +8,6 @@ import lombok.Value;
 public class ReviewOrderOption {
     Long orderId;
     String orderCode;
+    String productColor;
+    String productSize;
 }

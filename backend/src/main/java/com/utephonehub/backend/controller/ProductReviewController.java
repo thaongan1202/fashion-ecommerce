@@ -15,7 +15,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/products/{productId}/reviews")
@@ -24,6 +28,18 @@ public class ProductReviewController {
 
     private final IReviewService reviewService;
     private final SecurityUtils securityUtils;
+
+    @PostMapping(path = "/images", consumes = "multipart/form-data")
+    public ResponseEntity<ApiResponse<List<String>>> uploadReviewImages(
+            @PathVariable Long productId,
+            @RequestParam("orderId") Long orderId,
+            @RequestParam("files") List<MultipartFile> files,
+            HttpServletRequest request) {
+        Long userId = securityUtils.getCurrentUserId(request);
+        return ResponseEntity.ok(ApiResponse.success(
+                "Tải ảnh đánh giá thành công",
+                reviewService.uploadReviewImages(productId, orderId, userId, files)));
+    }
 
     @GetMapping
     public ResponseEntity<ApiResponse<ProductReviewsResponse>> getProductReviews(

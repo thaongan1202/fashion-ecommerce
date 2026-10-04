@@ -194,6 +194,12 @@ export default function OrderDetailPage(props: OrderDetailPageProps) {
                       <div className="flex-1 min-w-0">
                         <p className="font-medium line-clamp-2">{item.productName}</p>
                         <p className="text-sm text-muted-foreground">Số lượng: {item.quantity}</p>
+                        {(item.color || item.size) && (
+                          <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                            {item.color && <span className="rounded-full bg-secondary px-2 py-1">Màu: {item.color}</span>}
+                            {item.size && <span className="rounded-full bg-secondary px-2 py-1">Size: {item.size}</span>}
+                          </div>
+                        )}
                       </div>
 
                       {/* Price */}

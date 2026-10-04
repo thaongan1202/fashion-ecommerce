@@ -1,4 +1,4 @@
-import { getAuthToken } from '@/lib/api';
+import { fetchWithAuth, getAuthToken } from '@/lib/api';
 import type { Product } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081/api/v1';
@@ -81,7 +81,7 @@ class ProductService {
       const url = `${API_BASE_URL}/admin/products?${queryParams}`;
       console.log('Fetching products from:', url);
 
-      const response = await fetch(url, {
+      const response = await fetchWithAuth(url, {
         method: 'GET',
         headers: this.getAuthHeaders(),
         credentials: 'include', // Include cookies for authentication
@@ -127,7 +127,7 @@ class ProductService {
    * GET /api/v1/admin/products/{id}
    */
   async getProductById(id: number): Promise<Product> {
-    const response = await fetch(`${API_BASE_URL}/admin/products/${id}`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/admin/products/${id}`, {
       method: 'GET',
       headers: this.getAuthHeaders(),
     });
@@ -145,7 +145,7 @@ class ProductService {
    * POST /api/v1/admin/products
    */
   async createProduct(data: Partial<Product>): Promise<Product> {
-    const response = await fetch(`${API_BASE_URL}/admin/products`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/admin/products`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
       body: JSON.stringify(data),
@@ -165,7 +165,7 @@ class ProductService {
    * PUT /api/v1/admin/products/{id}
    */
   async updateProduct(id: number, data: Partial<Product>): Promise<Product> {
-    const response = await fetch(`${API_BASE_URL}/admin/products/${id}`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/admin/products/${id}`, {
       method: 'PUT',
       headers: this.getAuthHeaders(),
       body: JSON.stringify(data),
@@ -185,7 +185,7 @@ class ProductService {
    * DELETE /api/v1/admin/products/{id}
    */
   async deleteProduct(id: number): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/admin/products/${id}`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/admin/products/${id}`, {
       method: 'DELETE',
       headers: this.getAuthHeaders(),
     });
@@ -201,7 +201,7 @@ class ProductService {
    * POST /api/v1/admin/products/{id}/restore
    */
   async restoreProduct(id: number): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/admin/products/${id}/restore`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/admin/products/${id}/restore`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
     });
@@ -225,11 +225,11 @@ class ProductService {
     includeDeleted?: boolean;
     page?: number;
     size?: number;
-  }): Promise<{ success: boolean; data: ProductListResponse[] }> {
+  }): Promise<{ success: boolean; data: ProductListResponse[]; totalElements: number; totalPages: number; number: number }> {
     try {
       const params: GetProductsParams = {
         page: filters?.page || 0,
-        size: filters?.size || 100,
+        size: filters?.size || 20,
         keyword: filters?.keyword,
         categoryId: filters?.categoryId,
         brandId: filters?.brandId,
@@ -245,12 +245,18 @@ class ProductService {
       return {
         success: true,
         data: result.content,
+        totalElements: result.totalElements,
+        totalPages: result.totalPages,
+        number: result.number,
       };
     } catch (error) {
       console.error('getAllProductsAdmin error:', error);
       return {
         success: false,
         data: [],
+        totalElements: 0,
+        totalPages: 0,
+        number: filters?.page || 0,
       };
     }
   }
@@ -265,10 +271,13 @@ class ProductService {
     brandId?: number;
     sortBy?: string;
     sortDirection?: 'asc' | 'desc';
-  }): Promise<{ success: boolean; data: ProductListResponse[] }> {
+    page?: number;
+    size?: number;
+  }): Promise<{ success: boolean; data: ProductListResponse[]; totalElements: number; totalPages: number; number: number }> {
     try {
       const queryParams = new URLSearchParams();
-      queryParams.append('size', '1000');
+      queryParams.append('page', String(filters?.page ?? 0));
+      queryParams.append('size', String(filters?.size ?? 20));
       queryParams.append('sortBy', filters?.sortBy || 'deletedAt');
       queryParams.append('sortDirection', filters?.sortDirection || 'desc');
       
@@ -279,7 +288,7 @@ class ProductService {
       const url = `${API_BASE_URL}/admin/products/deleted?${queryParams}`;
       console.log('🗑️ Fetching deleted products from:', url);
 
-      const response = await fetch(url, {
+      const response = await fetchWithAuth(url, {
         method: 'GET',
         headers: this.getAuthHeaders(),
         credentials: 'include',
@@ -290,6 +299,9 @@ class ProductService {
         return {
           success: false,
           data: [],
+          totalElements: 0,
+          totalPages: 0,
+          number: filters?.page || 0,
         };
       }
 
@@ -303,12 +315,18 @@ class ProductService {
       return {
         success: true,
         data: result.data?.content || [],
+        totalElements: result.data?.totalElements || 0,
+        totalPages: result.data?.totalPages || 0,
+        number: result.data?.number || 0,
       };
     } catch (error) {
       console.error('getDeletedProducts error:', error);
       return {
         success: false,
         data: [],
+        totalElements: 0,
+        totalPages: 0,
+        number: filters?.page || 0,
       };
     }
   }
@@ -325,6 +343,8 @@ export const getAllProductsAdmin = (filters?: {
   sortBy?: string;
   sortDirection?: 'asc' | 'desc';
   includeDeleted?: boolean;
+  page?: number;
+  size?: number;
 }) => productService.getAllProductsAdmin(filters);
 
 export const getDeletedProducts = (filters?: {
@@ -333,6 +353,8 @@ export const getDeletedProducts = (filters?: {
   brandId?: number;
   sortBy?: string;
   sortDirection?: 'asc' | 'desc';
+  page?: number;
+  size?: number;
 }) => productService.getDeletedProducts(filters);
 
 export const deleteProduct = (id: number) => productService.deleteProduct(id);

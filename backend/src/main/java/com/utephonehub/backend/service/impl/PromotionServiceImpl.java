@@ -5,6 +5,7 @@ import com.utephonehub.backend.dto.response.PromotionResponse;
 import com.utephonehub.backend.entity.Promotion;
 import com.utephonehub.backend.entity.PromotionTarget;
 import com.utephonehub.backend.entity.PromotionTemplate;
+import com.utephonehub.backend.entity.Product;
 import com.utephonehub.backend.enums.EPromotionStatus;
 import com.utephonehub.backend.enums.EPromotionTemplateType;
 import com.utephonehub.backend.exception.promotion.PromotionNotFoundException;
@@ -19,7 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -274,6 +277,38 @@ public class PromotionServiceImpl implements IPromotionService {
                 .orElse(null);
         
         return maxDiscount;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Long, Double> getBestDiscountsForProducts(List<Product> products) {
+        if (products == null || products.isEmpty()) {
+            return Map.of();
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        List<Promotion> activeDiscounts = promotionRepository
+                .findByEffectiveDateBeforeAndExpirationDateAfter(now, now).stream()
+                .filter(promotion -> promotion.getStatus() == EPromotionStatus.ACTIVE)
+                .filter(promotion -> promotion.getTemplate().getType() == EPromotionTemplateType.DISCOUNT)
+                .filter(promotion -> promotion.getPercentDiscount() != null && promotion.getPercentDiscount() > 0)
+                .toList();
+
+        Map<Long, Double> bestDiscounts = new HashMap<>();
+        for (Product product : products) {
+            Long categoryId = product.getCategory() == null ? null : product.getCategory().getId();
+            Long brandId = product.getBrand() == null ? null : product.getBrand().getId();
+            Double bestDiscount = activeDiscounts.stream()
+                    .filter(promotion -> isPromotionApplicableToProduct(
+                            promotion, product.getId(), categoryId, brandId))
+                    .map(Promotion::getPercentDiscount)
+                    .max(Double::compare)
+                    .orElse(null);
+            if (bestDiscount != null) {
+                bestDiscounts.put(product.getId(), bestDiscount);
+            }
+        }
+        return bestDiscounts;
     }
 
     /**

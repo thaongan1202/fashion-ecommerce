@@ -4,11 +4,14 @@
 
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Eye } from 'lucide-react';
+import { Eye, Star } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
 import { getOrderStatus } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { ReviewOrderDialog } from '@/components/features/reviews/ReviewOrderDialog';
 import type { Order } from '@/types';
 
 interface OrdersTableProps {
@@ -19,6 +22,7 @@ interface OrdersTableProps {
 
 export function OrdersTable({ orders, isAdmin = false, onViewDetail }: OrdersTableProps) {
   const router = useRouter();
+  const [reviewingOrder, setReviewingOrder] = useState<Order | null>(null);
 
   const handleViewOrder = (order: Order) => {
     if (isAdmin && onViewDetail) {
@@ -74,9 +78,22 @@ export function OrdersTable({ orders, isAdmin = false, onViewDetail }: OrdersTab
                     {formatPrice(order.total || order.totalAmount)}
                   </td>
                   <td className="py-3 px-4">
-                    <span className={cn("px-2 py-1 rounded-full text-xs font-semibold", statusConfig.class)}>
-                      {statusConfig.label}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={cn("px-2 py-1 rounded-full text-xs font-semibold", statusConfig.class)}>
+                        {statusConfig.label}
+                      </span>
+                      {!isAdmin && order.status === 'DELIVERED' && order.items?.some((item) => item.productId) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 gap-1.5"
+                          onClick={() => setReviewingOrder(order)}
+                        >
+                          <Star className="h-4 w-4 text-amber-500" />
+                          Đánh giá
+                        </Button>
+                      )}
+                    </div>
                   </td>
                   <td className="py-3 px-4 text-muted-foreground hidden md:table-cell">
                     {order.date || new Date(order.createdAt).toLocaleDateString('vi-VN')}
@@ -94,8 +111,17 @@ export function OrdersTable({ orders, isAdmin = false, onViewDetail }: OrdersTab
               );
             })}
           </tbody>
-        </table>
+      </table>
       </div>
+      {reviewingOrder && (
+        <ReviewOrderDialog
+          order={reviewingOrder}
+          open={Boolean(reviewingOrder)}
+          onOpenChange={(open) => {
+            if (!open) setReviewingOrder(null);
+          }}
+        />
+      )}
     </div>
   );
 }

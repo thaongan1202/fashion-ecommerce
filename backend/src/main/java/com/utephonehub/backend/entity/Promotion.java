@@ -3,6 +3,7 @@ package com.utephonehub.backend.entity;
 import com.utephonehub.backend.enums.*;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;

@@ -14,6 +14,7 @@ import java.util.List;
 public interface ReviewRepository extends JpaRepository<Review, Long> {
     List<Review> findByProductId(Long productId);
     List<Review> findByProductIdOrderByCreatedAtDesc(Long productId);
+    List<Review> findTop30ByProductIdOrderByCreatedAtDesc(Long productId);
     List<Review> findByUserId(Long userId);
     boolean existsByUserIdAndProductIdAndOrderId(Long userId, Long productId, Long orderId);
 
@@ -26,6 +27,13 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             @Param("userId") Long userId,
             @Param("productId") Long productId,
             @Param("status") OrderStatus status);
+
+    @Query("SELECT r.order.id FROM Review r " +
+           "WHERE r.user.id = :userId AND r.product.id = :productId AND r.order.id IN :orderIds")
+    List<Long> findReviewedOrderIds(
+            @Param("userId") Long userId,
+            @Param("productId") Long productId,
+            @Param("orderIds") List<Long> orderIds);
 
     @Query("SELECT CASE WHEN COUNT(o) > 0 THEN true ELSE false END " +
            "FROM Order o JOIN o.items item " +

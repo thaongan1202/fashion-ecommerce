@@ -35,6 +35,7 @@ import {
 
 import Image from 'next/image';
 import { ProductCard } from '@/components/features/products/ProductCard';
+import { ProductReviews } from '@/components/features/reviews/ProductReviews';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
@@ -134,7 +135,7 @@ export default function ProductDetailPage() {
         ) {
           const firstAvailableVariant =
             productData.variants.find(
-              (variant) => variant.stockQuantity > 0
+              (variant) => (variant.stockQuantity ?? 0) > 0
             );
 
           if (firstAvailableVariant) {
@@ -344,7 +345,7 @@ export default function ProductDetailPage() {
           (variant) =>
             variant.color === color &&
             variant.size === selectedSize &&
-            variant.stockQuantity > 0
+            (variant.stockQuantity ?? 0) > 0
         );
 
       if (matchingVariant) {
@@ -366,7 +367,7 @@ export default function ProductDetailPage() {
       product.variants?.find(
         (variant) =>
           variant.color === color &&
-          variant.stockQuantity > 0
+          (variant.stockQuantity ?? 0) > 0
       );
 
     if (firstColorVariant) {
@@ -402,7 +403,7 @@ export default function ProductDetailPage() {
           (variant) =>
             variant.size === size &&
             variant.color === selectedColor &&
-            variant.stockQuantity > 0
+            (variant.stockQuantity ?? 0) > 0
         );
 
       if (matchingVariant) {
@@ -422,7 +423,7 @@ export default function ProductDetailPage() {
       product.variants?.find(
         (variant) =>
           variant.size === size &&
-          variant.stockQuantity > 0
+          (variant.stockQuantity ?? 0) > 0
       );
 
     if (firstSizeVariant) {
@@ -1009,8 +1010,7 @@ export default function ProductDetailPage() {
                                 ) =>
                                   variant.color ===
                                     color &&
-                                  variant.stockQuantity >
-                                    0
+                                  (variant.stockQuantity ?? 0) > 0
                               );
 
                             return (
@@ -1083,8 +1083,7 @@ export default function ProductDetailPage() {
                                     variant.color ===
                                       selectedColor
                                   ) &&
-                                  variant.stockQuantity >
-                                    0
+                                  (variant.stockQuantity ?? 0) > 0
                               );
 
                             return (
@@ -1566,34 +1565,14 @@ export default function ProductDetailPage() {
               <Card className="border-0 shadow-lg rounded-2xl overflow-hidden">
 
                 <CardContent className="p-8">
-
-                  <div className="text-center py-12">
-
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-full mb-4">
-
-                      <Star className="w-8 h-8 text-primary" />
-
-                    </div>
-
-                    <h3 className="text-xl font-semibold mb-2">
-                      Đánh giá sản phẩm
-                    </h3>
-
-                    <p className="text-muted-foreground mb-6">
-                      Tính năng đánh giá đang được phát triển
-                    </p>
-
-                    <Button
-                      variant="outline"
-                      className="gap-2"
-                    >
-                      Xem tất cả đánh giá
-
-                      <ArrowRight className="w-4 h-4" />
-                    </Button>
-
-                  </div>
-
+                  <ProductReviews
+                    productId={product.id}
+                    onSummaryChange={({ averageRating, totalReviews }) => {
+                      setProduct((current) => current
+                        ? { ...current, averageRating, totalReviews }
+                        : current);
+                    }}
+                  />
                 </CardContent>
 
               </Card>

@@ -1,37 +1,97 @@
 'use client';
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ChangeEvent } from 'react';
 import Link from 'next/link';
-import { BadgeCheck, Loader2, MessageSquare, Send, Star } from 'lucide-react';
+import { BadgeCheck, ImagePlus, Loader2, MessageSquare, Send, Star, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import {
   getProductReviews,
+  getReviewImageUrl,
   submitProductReview,
+  uploadReviewImages,
   type ProductReviewsResponse,
 } from '@/services/review.service';
 
 interface ProductReviewsProps {
   productId: number;
   onSummaryChange?: (summary: { averageRating: number; totalReviews: number }) => void;
+  fixedOrderId?: number;
+  variantColor?: string | null;
+  variantSize?: string | null;
+  compact?: boolean;
 }
 
-export function ProductReviews({ productId, onSummaryChange }: ProductReviewsProps) {
+const MAX_REVIEW_IMAGES = 5;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+function RatingInput({
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  disabled: boolean;
+  onChange: (rating: number) => void;
+}) {
+  return (
+    <fieldset>
+      <legend className="mb-2 text-sm font-medium">{label}</legend>
+      <div className="flex items-center gap-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            type="button"
+            aria-label={`${star} sao`}
+            aria-pressed={value === star}
+            onClick={() => onChange(star)}
+            disabled={disabled}
+            className="rounded p-1 text-amber-500 transition hover:scale-110 disabled:opacity-50"
+          >
+            <Star className={`h-6 w-6 ${star <= value ? 'fill-current' : ''}`} />
+          </button>
+        ))}
+        {value > 0 && <span className="ml-2 text-sm text-muted-foreground">{value}/5</span>}
+      </div>
+    </fieldset>
+  );
+}
+
+export function ProductReviews({
+  productId,
+  onSummaryChange,
+  fixedOrderId,
+  variantColor,
+  variantSize,
+  compact = false,
+}: ProductReviewsProps) {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [data, setData] = useState<ProductReviewsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [rating, setRating] = useState(0);
+  const [materialRating, setMaterialRating] = useState(0);
+  const [fitRating, setFitRating] = useState(0);
+  const [colorRating, setColorRating] = useState(0);
   const [comment, setComment] = useState('');
   const [orderId, setOrderId] = useState('');
+  const [images, setImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const imagePreviewsRef = useRef(imagePreviews);
+  imagePreviewsRef.current = imagePreviews;
 
   const loadReviews = useCallback(async () => {
+    setLoading(true);
     setError('');
     try {
       const response = await getProductReviews(productId);
       setData(response);
       setOrderId((current) => {
+        if (fixedOrderId !== undefined) return String(fixedOrderId);
         const stillEligible = response.eligibleOrders.some((order) => String(order.orderId) === current);
         return stillEligible ? current : String(response.eligibleOrders[0]?.orderId ?? '');
       });
@@ -40,35 +100,80 @@ export function ProductReviews({ productId, onSummaryChange }: ProductReviewsPro
     } finally {
       setLoading(false);
     }
-  }, [productId]);
+  }, [fixedOrderId, productId]);
 
   useEffect(() => {
     void loadReviews();
   }, [loadReviews]);
 
+  useEffect(() => () => imagePreviewsRef.current.forEach((preview) => URL.revokeObjectURL(preview)), []);
+
+  const selectedOrder = useMemo(
+    () => data?.eligibleOrders.find((order) => order.orderId === (fixedOrderId ?? Number(orderId))),
+    [data?.eligibleOrders, fixedOrderId, orderId],
+  );
+
+  const handleImageSelection = (event: ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    if (selected.length + images.length > MAX_REVIEW_IMAGES) {
+      setError(`Bạn chỉ có thể tải tối đa ${MAX_REVIEW_IMAGES} ảnh.`);
+      return;
+    }
+    const invalidImage = selected.find((file) => !IMAGE_TYPES.includes(file.type) || file.size > MAX_IMAGE_BYTES);
+    if (invalidImage) {
+      setError('Chỉ nhận ảnh JPG, PNG hoặc WebP, tối đa 5 MB mỗi ảnh.');
+      return;
+    }
+    setError('');
+    setImages((current) => [...current, ...selected]);
+    setImagePreviews((current) => [...current, ...selected.map((file) => URL.createObjectURL(file))]);
+  };
+
+  const removeImage = (index: number) => {
+    const preview = imagePreviews[index];
+    if (preview) URL.revokeObjectURL(preview);
+    setImages((current) => current.filter((_, itemIndex) => itemIndex !== index));
+    setImagePreviews((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (rating < 1 || !orderId || comment.trim().length === 0) {
-      setError('Vui lòng chọn đơn hàng, số sao và nhập nội dung đánh giá.');
+    const selectedOrderId = fixedOrderId ?? Number(orderId);
+    const orderIsEligible = data?.eligibleOrders.some((order) => order.orderId === selectedOrderId);
+    if (!selectedOrderId || !orderIsEligible) {
+      setError('Đơn hàng này chưa đủ điều kiện đánh giá hoặc bạn đã đánh giá sản phẩm.');
+      return;
+    }
+    if (rating < 1 || materialRating < 1 || fitRating < 1 || colorRating < 1 || comment.trim().length === 0) {
+      setError('Vui lòng chấm sao cho các tiêu chí và nhập nội dung đánh giá.');
       return;
     }
 
     setSubmitting(true);
     setError('');
     try {
+      const imageUrls = images.length > 0 ? await uploadReviewImages(productId, selectedOrderId, images) : [];
       const updated = await submitProductReview(productId, {
-        orderId: Number(orderId),
+        orderId: selectedOrderId,
         rating,
+        materialRating,
+        fitRating,
+        colorRating,
         comment: comment.trim(),
+        imageUrls,
       });
       setData(updated);
       setOrderId(String(updated.eligibleOrders[0]?.orderId ?? ''));
       setRating(0);
+      setMaterialRating(0);
+      setFitRating(0);
+      setColorRating(0);
       setComment('');
-      onSummaryChange?.({
-        averageRating: updated.averageRating,
-        totalReviews: updated.totalReviews,
-      });
+      imagePreviews.forEach((preview) => URL.revokeObjectURL(preview));
+      setImages([]);
+      setImagePreviews([]);
+      onSummaryChange?.({ averageRating: updated.averageRating, totalReviews: updated.totalReviews });
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Không thể gửi đánh giá.');
     } finally {
@@ -76,12 +181,134 @@ export function ProductReviews({ productId, onSummaryChange }: ProductReviewsPro
     }
   };
 
-  if (loading) {
-    return <div className="py-10 text-center text-muted-foreground">Đang tải đánh giá...</div>;
+  const formOrder = fixedOrderId === undefined ? selectedOrder : undefined;
+  const canSubmitForOrder = fixedOrderId === undefined
+    ? Boolean(data?.canReview)
+    : Boolean(data?.eligibleOrders.some((order) => order.orderId === fixedOrderId));
+  const alreadyReviewed = fixedOrderId !== undefined
+    && Boolean(data?.reviewedOrderIds?.includes(fixedOrderId));
+
+  if (loading && !data) {
+    return <div className="py-8 text-center text-sm text-muted-foreground">Đang tải đánh giá...</div>;
   }
 
   if (error && !data) {
     return <div className="py-8 text-center text-sm text-destructive">{error}</div>;
+  }
+
+  const reviewForm = canSubmitForOrder ? (
+    <form onSubmit={handleSubmit} className="space-y-5 rounded-xl border p-5">
+      <div>
+        <h4 className="font-semibold">Viết đánh giá của bạn</h4>
+        <p className="mt-1 text-sm text-muted-foreground">Chỉ đơn hàng đã giao thành công mới được đánh giá.</p>
+      </div>
+
+      {fixedOrderId === undefined && data?.eligibleOrders.length ? (
+        <div>
+          <label htmlFor={`review-order-${productId}`} className="mb-2 block text-sm font-medium">Đơn hàng đã nhận</label>
+          <select
+            id={`review-order-${productId}`}
+            value={orderId}
+            onChange={(event) => setOrderId(event.target.value)}
+            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+            disabled={submitting}
+          >
+            {data.eligibleOrders.map((order) => (
+              <option key={order.orderId} value={order.orderId}>Đơn {order.orderCode}</option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+
+      {(variantColor || variantSize || formOrder?.productColor || formOrder?.productSize) && (
+        <div className="rounded-lg bg-muted/50 p-3 text-sm">
+          <p className="mb-1 font-medium">Biến thể trong đơn hàng</p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+            {(variantColor || formOrder?.productColor) && <span>Màu sắc: {variantColor || formOrder?.productColor}</span>}
+            {(variantSize || formOrder?.productSize) && <span>Kích cỡ: {variantSize || formOrder?.productSize}</span>}
+          </div>
+        </div>
+      )}
+
+      <RatingInput label="Đánh giá chung" value={rating} disabled={submitting} onChange={setRating} />
+      <div className="grid gap-4 sm:grid-cols-3">
+        <RatingInput label="Chất liệu" value={materialRating} disabled={submitting} onChange={setMaterialRating} />
+        <RatingInput label="Form dáng, kích cỡ" value={fitRating} disabled={submitting} onChange={setFitRating} />
+        <RatingInput label="Màu sắc" value={colorRating} disabled={submitting} onChange={setColorRating} />
+      </div>
+
+      <div>
+        <label htmlFor={`review-comment-${productId}`} className="mb-2 block text-sm font-medium">Nội dung đánh giá</label>
+        <textarea
+          id={`review-comment-${productId}`}
+          value={comment}
+          onChange={(event) => setComment(event.target.value)}
+          maxLength={2000}
+          rows={4}
+          placeholder="Chia sẻ trải nghiệm của bạn về sản phẩm..."
+          className="w-full resize-y rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
+          disabled={submitting}
+        />
+        <p className="mt-1 text-right text-xs text-muted-foreground">{comment.length}/2000</p>
+      </div>
+
+      <div>
+        <label className="mb-2 block text-sm font-medium">Ảnh thực tế (tối đa 5 ảnh, 5 MB mỗi ảnh)</label>
+        <div className="flex flex-wrap gap-3">
+          {imagePreviews.map((preview, index) => (
+            <div key={preview} className="relative h-20 w-20 overflow-hidden rounded-lg border">
+              <img src={preview} alt={`Ảnh đánh giá ${index + 1}`} className="h-full w-full object-cover" />
+              <button
+                type="button"
+                onClick={() => removeImage(index)}
+                disabled={submitting}
+                aria-label={`Xóa ảnh ${index + 1}`}
+                className="absolute right-1 top-1 rounded-full bg-black/70 p-1 text-white"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+          {images.length < MAX_REVIEW_IMAGES && (
+            <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-muted-foreground hover:bg-muted/50">
+              <ImagePlus className="h-5 w-5" />
+              <span className="text-xs">Thêm ảnh</span>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                className="sr-only"
+                disabled={submitting}
+                onChange={handleImageSelection}
+              />
+            </label>
+          )}
+        </div>
+      </div>
+
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+      <Button type="submit" disabled={submitting || !orderId && fixedOrderId === undefined}>
+        {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+        Gửi đánh giá
+      </Button>
+    </form>
+  ) : alreadyReviewed ? (
+    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">
+      Bạn đã đánh giá sản phẩm này trong đơn hàng.
+    </div>
+  ) : (
+    <div className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
+      <p>{data?.eligibilityMessage}</p>
+      {!authLoading && !isAuthenticated && (
+        <Link className="mt-3 inline-block font-medium text-primary hover:underline" href={`/login?redirect=/products/${productId}`}>
+          Đăng nhập để đánh giá
+        </Link>
+      )}
+    </div>
+  );
+
+  if (compact) {
+    return <div className="space-y-4">{reviewForm}</div>;
   }
 
   return (
@@ -95,89 +322,15 @@ export function ProductReviews({ productId, onSummaryChange }: ProductReviewsPro
         </div>
         <div className="flex items-center gap-2" aria-label={`Điểm trung bình ${data?.averageRating.toFixed(1) ?? '0.0'} trên 5`}>
           <div className="flex text-amber-500">
-            {[1, 2, 3, 4, 5].map((value) => (
-              <Star key={value} className={`h-5 w-5 ${value <= Math.round(data?.averageRating ?? 0) ? 'fill-current' : ''}`} />
+            {[1, 2, 3, 4, 5].map((star) => (
+              <Star key={star} className={`h-5 w-5 ${star <= Math.round(data?.averageRating ?? 0) ? 'fill-current' : ''}`} />
             ))}
           </div>
           <span className="font-semibold">{(data?.averageRating ?? 0).toFixed(1)}/5</span>
         </div>
       </section>
 
-      {data?.canReview ? (
-        <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border p-5">
-          <div>
-            <h4 className="font-semibold">Viết đánh giá của bạn</h4>
-            <p className="mt-1 text-sm text-muted-foreground">Chỉ khách đã nhận hàng mới có thể đánh giá.</p>
-          </div>
-
-          <div>
-            <label htmlFor="review-order" className="mb-2 block text-sm font-medium">Đơn hàng đã nhận</label>
-            <select
-              id="review-order"
-              value={orderId}
-              onChange={(event) => setOrderId(event.target.value)}
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-              disabled={submitting}
-            >
-              {data.eligibleOrders.map((order) => (
-                <option key={order.orderId} value={order.orderId}>Đơn {order.orderCode}</option>
-              ))}
-            </select>
-          </div>
-
-          <fieldset>
-            <legend className="mb-2 text-sm font-medium">Bạn chấm sản phẩm bao nhiêu sao?</legend>
-            <div className="flex items-center gap-1">
-              {[1, 2, 3, 4, 5].map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-label={`${value} sao`}
-                  aria-pressed={rating === value}
-                  onClick={() => setRating(value)}
-                  disabled={submitting}
-                  className="rounded p-1 text-amber-500 transition hover:scale-110 disabled:opacity-50"
-                >
-                  <Star className={`h-7 w-7 ${value <= rating ? 'fill-current' : ''}`} />
-                </button>
-              ))}
-              {rating > 0 && <span className="ml-2 text-sm text-muted-foreground">{rating}/5</span>}
-            </div>
-          </fieldset>
-
-          <div>
-            <label htmlFor="review-comment" className="mb-2 block text-sm font-medium">Nội dung đánh giá</label>
-            <textarea
-              id="review-comment"
-              value={comment}
-              onChange={(event) => setComment(event.target.value)}
-              maxLength={2000}
-              rows={4}
-              placeholder="Chia sẻ trải nghiệm của bạn về sản phẩm..."
-              className="w-full resize-y rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
-              disabled={submitting}
-            />
-            <p className="mt-1 text-right text-xs text-muted-foreground">{comment.length}/2000</p>
-          </div>
-
-          {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-
-          <Button type="submit" disabled={submitting || !orderId}>
-            {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-            Gửi đánh giá
-          </Button>
-        </form>
-      ) : (
-        <div className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
-          <p>{data?.eligibilityMessage}</p>
-          {!authLoading && !isAuthenticated && (
-            <Link className="mt-3 inline-block font-medium text-primary hover:underline" href={`/login?redirect=/products/${productId}`}>
-              Đăng nhập để đánh giá
-            </Link>
-          )}
-        </div>
-      )}
-
+      {reviewForm}
       {error && data && <p role="alert" className="text-sm text-destructive">{error}</p>}
 
       <section aria-label="Danh sách đánh giá" className="space-y-5">
@@ -195,11 +348,32 @@ export function ProductReviews({ productId, onSummaryChange }: ProductReviewsPro
               </time>
             </div>
             <div className="mt-2 flex text-amber-500" aria-label={`${review.rating} trên 5 sao`}>
-              {[1, 2, 3, 4, 5].map((value) => (
-                <Star key={value} className={`h-4 w-4 ${value <= review.rating ? 'fill-current' : ''}`} />
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Star key={star} className={`h-4 w-4 ${star <= review.rating ? 'fill-current' : ''}`} />
               ))}
             </div>
+            {(review.productColor || review.productSize) && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Biến thể đã mua: {[review.productColor && `Màu ${review.productColor}`, review.productSize && `Size ${review.productSize}`].filter(Boolean).join(' · ')}
+              </p>
+            )}
+            {(review.materialRating || review.fitRating || review.colorRating) && (
+              <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                {review.materialRating && <span className="rounded-full bg-muted px-2 py-1">Chất liệu {review.materialRating}/5</span>}
+                {review.fitRating && <span className="rounded-full bg-muted px-2 py-1">Form dáng {review.fitRating}/5</span>}
+                {review.colorRating && <span className="rounded-full bg-muted px-2 py-1">Màu sắc {review.colorRating}/5</span>}
+              </div>
+            )}
             <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-foreground/90">{review.comment}</p>
+            {review.imageUrls?.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {review.imageUrls.map((imageUrl) => (
+                  <a key={imageUrl} href={getReviewImageUrl(imageUrl)} target="_blank" rel="noreferrer">
+                    <img src={getReviewImageUrl(imageUrl)} alt="Ảnh khách hàng đánh giá" loading="lazy" className="h-20 w-20 rounded-lg border object-cover" />
+                  </a>
+                ))}
+              </div>
+            )}
           </article>
         )) : (
           <div className="py-8 text-center text-sm text-muted-foreground">

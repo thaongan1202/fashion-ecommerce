@@ -86,6 +86,9 @@ public class SecurityConfig {
                                                 .requestMatchers(
                                                                 "/api/v1/public/**")
                                                 .permitAll()
+                                                .requestMatchers(org.springframework.http.HttpMethod.GET,
+                                                                "/uploads/reviews/**")
+                                                .permitAll()
 
                                                 // Payment endpoints (VNPay callbacks)
                                                 .requestMatchers(

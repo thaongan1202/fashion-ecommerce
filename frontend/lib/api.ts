@@ -93,6 +93,74 @@ export const clearAuthTokens = (): void => {
   }
 };
 
+let refreshInFlight: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken =
+    typeof window !== "undefined" ? localStorage.getItem("refreshToken") : null;
+  if (!refreshToken) return null;
+
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken }),
+        });
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            clearAuthTokens();
+            window.dispatchEvent(new Event("auth:expired"));
+          }
+          return null;
+        }
+
+        const authData = payload?.data ?? payload;
+        if (typeof authData?.accessToken !== "string") return null;
+
+        setAuthTokens(authData.accessToken, authData.refreshToken ?? refreshToken);
+        if (authData.user) setStoredUser(authData.user);
+        return authData.accessToken as string;
+      } catch {
+        // Keep the session tokens when the server is temporarily unreachable.
+        return null;
+      }
+    })();
+  }
+
+  try {
+    return await refreshInFlight;
+  } finally {
+    refreshInFlight = null;
+  }
+}
+
+/** Fetch an API resource and transparently renew an expired access token once. */
+export async function fetchWithAuth(
+  input: RequestInfo | URL,
+  options: RequestInit = {}
+): Promise<Response> {
+  const headers = new Headers(options.headers);
+  const accessToken = getAuthToken();
+  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+
+  const response = await fetch(input, { ...options, headers });
+  const requestUrl = typeof input === "string" ? input : input.toString();
+  const isAuthEndpoint = /\/auth\/(?:login|register|refresh)(?:\?|$)/.test(requestUrl);
+  if (response.status !== 401 || !accessToken || isAuthEndpoint) return response;
+
+  // Another request may already have renewed the token while this one was in flight.
+  let renewedToken = getAuthToken();
+  if (renewedToken === accessToken) renewedToken = await refreshAccessToken();
+  if (!renewedToken) return response;
+
+  headers.set("Authorization", `Bearer ${renewedToken}`);
+  return fetch(input, { ...options, headers });
+}
+
 // Helper function to get stored user
 export const getStoredUser = (): User | null => {
   if (typeof window !== "undefined") {
@@ -163,7 +231,7 @@ async function fetchAPI<T>(
       });
     }
 
-    const response = await fetch(url, {
+    const response = await fetchWithAuth(url, {
       ...options,
       headers,
     });

@@ -7,6 +7,7 @@ import java.util.List;
 
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.annotations.BatchSize;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -90,6 +91,7 @@ public class Product {
      * Cascade: Save templates when saving product
      * Orphan removal: Delete templates if removed from list
      */
+
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<ProductTemplate> templates = new ArrayList<>();
@@ -105,7 +107,7 @@ public class Product {
      * Product Images
      * Multiple images per product for gallery
      */
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<ProductImage> images = new ArrayList<>();
 
