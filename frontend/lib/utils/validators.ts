@@ -105,6 +105,25 @@ export const validatePhoneNumber = (phone: string): ValidationResult => {
 };
 
 /**
+ * Validate an optional Vietnamese mobile number for account registration
+ */
+export const validateVietnameseMobilePhone = (phone: string): ValidationResult => {
+  if (!phone.trim()) {
+    return { isValid: true };
+  }
+
+  const phoneRegex = /^0(?:32|33|34|35|36|37|38|39|52|55|56|58|59|70|76|77|78|79|81|82|83|84|85|86|87|88|89|90|91|92|93|94|96|97|98|99)\d{7}$/;
+  if (!phoneRegex.test(phone)) {
+    return {
+      isValid: false,
+      error: 'Số điện thoại phải gồm 10 chữ số, bắt đầu bằng 0 và có đầu số di động hợp lệ tại Việt Nam',
+    };
+  }
+
+  return { isValid: true };
+};
+
+/**
  * Validate required field
  */
 export const validateRequired = (value: string, fieldName: string): ValidationResult => {

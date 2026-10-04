@@ -12,6 +12,7 @@ import { User, Mail, Lock, AlertCircle, CheckCircle, Loader2, Eye, EyeOff, Phone
 import { authAPI } from '@/lib/api';
 import { useFormValidation } from '@/hooks';
 import { ROUTES } from '@/lib/constants';
+import { validateVietnameseMobilePhone } from '@/lib/utils/validators';
 import { SocialLogin } from './SocialLogin';
 
 export function RegisterForm() {
@@ -29,6 +30,7 @@ export function RegisterForm() {
     confirmPassword: '',
   });
   const [error, setError] = useState('');
+  const [phoneError, setPhoneError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -42,6 +44,7 @@ export function RegisterForm() {
       [name]: value,
     }));
     setError('');
+    if (name === 'phoneNumber') setPhoneError('');
     clearError(name);
   };
 
@@ -53,6 +56,9 @@ export function RegisterForm() {
     if (!validate('username', formData.username, 'username')) isValid = false;
     if (!validate('fullName', formData.fullName, 'required', { fieldName: 'Họ và tên' })) isValid = false;
     if (!validate('email', formData.email, 'email')) isValid = false;
+    const phoneValidation = validateVietnameseMobilePhone(formData.phoneNumber);
+    setPhoneError(phoneValidation.error ?? '');
+    if (!phoneValidation.isValid) isValid = false;
     if (!validate('password', formData.password, 'password')) isValid = false;
     if (!validatePasswordConfirmation(formData.password, formData.confirmPassword)) isValid = false;
 
@@ -80,7 +86,7 @@ export function RegisterForm() {
         username: formData.username,
         fullName: formData.fullName,
         email: formData.email,
-        phoneNumber: formData.phoneNumber || undefined,
+        phoneNumber: formData.phoneNumber.trim() || undefined,
         gender: formData.gender || undefined,
         dateOfBirth: formData.dateOfBirth || undefined,
         password: formData.password,
@@ -206,10 +212,14 @@ export function RegisterForm() {
             value={formData.phoneNumber}
             onChange={handleChange}
             placeholder="0912345678"
+            aria-invalid={!!phoneError}
             className="w-full pl-10 pr-4 py-2.5 border border-input rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
             disabled={loading}
           />
         </div>
+        {phoneError && (
+          <p className="text-xs text-red-600 mt-1">{phoneError}</p>
+        )}
       </div>
 
       {/* Gender and Date of Birth - Grid Layout */}
