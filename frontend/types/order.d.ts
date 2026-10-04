@@ -14,6 +14,8 @@ export interface OrderItem {
   productId: number;
   productName: string;
   quantity: number;
+  color?: string;
+  size?: string;
   price: number;
 }
 
@@ -101,6 +103,8 @@ export type PaymentMethod = "COD" | "BANK_TRANSFER" | "VNPAY";
 export interface OrderItemRequest {
   productId: number;
   quantity: number;
+  color?: string;
+  size?: string;
 }
 
 export interface CreateOrderRequest {

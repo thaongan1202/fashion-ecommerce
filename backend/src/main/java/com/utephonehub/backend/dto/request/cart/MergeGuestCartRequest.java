@@ -28,5 +28,7 @@ public class MergeGuestCartRequest {
     public static class GuestCartItem {
         private Long productId;
         private Integer quantity;
+        private String color;
+        private String size;
     }
 }

@@ -21,4 +21,10 @@ public class AddToCartRequest {
     @Min(value = 1, message = "Số lượng phải lớn hơn 0")
     @Max(value = 10, message = "Chỉ được mua tối đa 10 sản phẩm")
     private Integer quantity;
+
+    /** Màu sắc đã chọn (tùy chọn) */
+    private String color;
+
+    /** Kích cỡ đã chọn (tùy chọn) */
+    private String size;
 }
