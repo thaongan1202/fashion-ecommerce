@@ -117,8 +117,10 @@ public class OrderServiceImpl implements IOrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("User không tồn tại"));
         
         // 2. Validate danh sách sản phẩm
+        // distinct(): cùng 1 sản phẩm có thể xuất hiện nhiều dòng (khác màu/size)
         List<Long> productIds = request.getItems().stream()
                 .map(OrderItemRequest::getProductId)
+                .distinct()
                 .collect(Collectors.toList());
         
         List<Product> products = productRepository.findAllByIdIn(productIds);
@@ -135,6 +137,10 @@ public class OrderServiceImpl implements IOrderService {
         BigDecimal totalAmount = BigDecimal.ZERO;
         List<OrderItemRequest> validatedItems = new ArrayList<>();
         
+        // Tổng số lượng yêu cầu theo sản phẩm (gộp các dòng khác màu/size) để kiểm tra tồn kho đúng
+        Map<Long, Integer> requestedQtyByProduct = request.getItems().stream()
+                .collect(Collectors.toMap(OrderItemRequest::getProductId, OrderItemRequest::getQuantity, Integer::sum));
+
         for (OrderItemRequest item : request.getItems()) {
             Product product = productMap.get(item.getProductId());
             
@@ -145,7 +151,7 @@ public class OrderServiceImpl implements IOrderService {
                     .sum();
             
             // Kiểm tra tồn kho
-            if (totalStock < item.getQuantity()) {
+            if (totalStock < requestedQtyByProduct.get(item.getProductId())) {
                 throw new BadRequestException(
                     String.format("Sản phẩm '%s' chỉ còn %d sản phẩm trong kho", 
                         product.getName(), totalStock)
@@ -292,6 +298,8 @@ public class OrderServiceImpl implements IOrderService {
                     .order(order)
                     .product(product)
                     .quantity(itemReq.getQuantity())
+                    .color(normalizeVariant(itemReq.getColor()))
+                    .size(normalizeVariant(itemReq.getSize()))
                     .price(price)
                     .createdAt(LocalDateTime.now())
                     .build();
@@ -364,13 +372,13 @@ public class OrderServiceImpl implements IOrderService {
         // 11.1. AF2 – After successfully creating the order, automatically remove
         // the corresponding CartItems in the cart (do not delete the entire cart).
         try {
-            List<Long> orderedProductIds = validatedItems.stream()
-                    .map(OrderItemRequest::getProductId)
-                    .toList();
-
+            // Chỉ xóa đúng dòng giỏ (sản phẩm + màu + size) đã được đặt, giữ lại các biến thể khác
             cartRepository.findByUserIdWithItems(userId).ifPresent(cart -> {
                 List<CartItem> toRemove = cart.getItemsInternal().stream()
-                        .filter(item -> orderedProductIds.contains(item.getProduct().getId()))
+                        .filter(item -> validatedItems.stream().anyMatch(ordered ->
+                                ordered.getProductId().equals(item.getProduct().getId())
+                                        && sameVariant(item.getColor(), ordered.getColor())
+                                        && sameVariant(item.getSize(), ordered.getSize())))
                         .toList();
 
                 if (!toRemove.isEmpty()) {
@@ -434,6 +442,19 @@ public class OrderServiceImpl implements IOrderService {
         return response;
     }
     
+    /** Chuẩn hóa màu/size: rỗng => null, bỏ khoảng trắng thừa. */
+    private static String normalizeVariant(String value) {
+        return (value == null || value.isBlank()) ? null : value.trim();
+    }
+
+    /** So khớp màu/size null-safe, không phân biệt hoa/thường. */
+    private static boolean sameVariant(String a, String b) {
+        String na = normalizeVariant(a);
+        String nb = normalizeVariant(b);
+        if (na == null || nb == null) return na == null && nb == null;
+        return na.equalsIgnoreCase(nb);
+    }
+
     /**
      * Generate unique order code
      * Format: ORD_YYMMDDHHMMSS (20 chars max)

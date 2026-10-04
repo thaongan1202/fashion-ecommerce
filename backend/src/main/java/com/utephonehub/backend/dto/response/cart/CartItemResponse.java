@@ -19,6 +19,8 @@ public class CartItemResponse {
     private String productThumbnailUrl;
     private BigDecimal unitPrice;
     private Integer quantity;
+    private String color;
+    private String size;
     private BigDecimal subtotal;
     private Integer stockQuantity;
     private Boolean outOfStock;

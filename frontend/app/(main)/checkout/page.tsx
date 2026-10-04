@@ -447,6 +447,8 @@ function CheckoutContent() {
         items: itemsForOrder.map((item: any) => ({
           productId: item.productId,
           quantity: item.quantity,
+          color: item.color || undefined,
+          size: item.size || undefined,
         })),
       };
 

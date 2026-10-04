@@ -80,6 +80,8 @@ public class GuestCartServiceImpl implements IGuestCartService {
                 items.add(GuestCartRedisItem.builder()
                         .productId(it.getProductId())
                         .quantity(normalizedQty)
+                        .color(it.getColor())
+                        .size(it.getSize())
                         .build());
             }
         }
@@ -123,6 +125,8 @@ public class GuestCartServiceImpl implements IGuestCartService {
             out.add(MergeGuestCartRequest.GuestCartItem.builder()
                     .productId(it.getProductId())
                     .quantity(Math.max(1, Math.min(10, qty)))
+                    .color(it.getColor())
+                    .size(it.getSize())
                     .build());
         }
         return out;
@@ -148,5 +152,7 @@ public class GuestCartServiceImpl implements IGuestCartService {
     public static class GuestCartRedisItem {
         private Long productId;
         private Integer quantity;
+        private String color;
+        private String size;
     }
 }

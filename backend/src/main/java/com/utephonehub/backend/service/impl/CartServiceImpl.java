@@ -165,28 +165,41 @@ public class CartServiceImpl implements ICartService {
                         return cartRepository.save(newCart);
                     });
 
-            // Check if product already exists in cart
+            // Mỗi dòng giỏ hàng = sản phẩm + màu + size.
+            // Cùng sản phẩm nhưng khác màu/size => dòng riêng (vd: 5 đen + 5 trắng).
+            final String color = normalizeVariant(request.getColor());
+            final String size = normalizeVariant(request.getSize());
+
             Optional<CartItem> existingItem = cart.getItems().stream()
                     .filter(item -> item.getProduct().getId().equals(product.getId()))
+                    .filter(item -> sameVariant(item, color, size))
                     .findFirst();
+
+            // Số lượng của các dòng khác (màu/size khác) cùng sản phẩm - dùng để kiểm tra tồn kho tổng
+            final int otherLinesQty = cart.getItems().stream()
+                    .filter(item -> item.getProduct().getId().equals(product.getId()))
+                    .filter(item -> existingItem.isEmpty() || item != existingItem.get())
+                    .mapToInt(CartItem::getQuantity)
+                    .sum();
 
             if (existingItem.isPresent()) {
                 // Update existing item quantity
                 CartItem item = existingItem.get();
                 int newQuantity = item.getQuantity() + request.getQuantity();
 
-                // Validate max quantity first
+                // Validate max quantity first (giới hạn tính trên từng dòng màu/size)
                 if (newQuantity > MAX_QUANTITY_PER_PRODUCT) {
                     throw new MaxQuantityExceededException(MAX_QUANTITY_PER_PRODUCT, newQuantity);
                 }
 
-                // Then check stock availability
-                if (newQuantity > getTotalStockQuantity(product)) {
+                // Then check stock availability (tồn kho tính trên toàn sản phẩm)
+                int totalStock = getTotalStockQuantity(product);
+                if (otherLinesQty + newQuantity > totalStock) {
                     throw new OutOfStockException(
                         product.getId(),
                         product.getName(),
                         newQuantity,
-                        getTotalStockQuantity(product)
+                        Math.max(0, totalStock - otherLinesQty)
                     );
                 }
 
@@ -204,13 +217,14 @@ public class CartServiceImpl implements ICartService {
                     throw new MaxQuantityExceededException(MAX_QUANTITY_PER_PRODUCT, quantity);
                 }
 
-                // Then check stock availability
-                if (quantity > getTotalStockQuantity(product)) {
+                // Then check stock availability (tồn kho tính trên toàn sản phẩm)
+                int totalStock = getTotalStockQuantity(product);
+                if (otherLinesQty + quantity > totalStock) {
                     throw new OutOfStockException(
                         product.getId(),
                         product.getName(),
                         quantity,
-                        getTotalStockQuantity(product)
+                        Math.max(0, totalStock - otherLinesQty)
                     );
                 }
 
@@ -218,6 +232,8 @@ public class CartServiceImpl implements ICartService {
                         .cart(cart)
                         .product(product)
                         .quantity(quantity)
+                        .color(color)
+                        .size(size)
                         .build();
                 cartItemRepository.save(newItem);
                 cart.addItem(newItem);
@@ -265,14 +281,19 @@ public class CartServiceImpl implements ICartService {
                 throw new MaxQuantityExceededException(MAX_QUANTITY_PER_PRODUCT, request.getQuantity());
             }
 
-            // Then check stock availability
+            // Then check stock availability (tồn kho tính trên toàn sản phẩm, gồm cả các dòng màu/size khác)
             Product product = cartItem.getProduct();
-            if (getTotalStockQuantity(product) < request.getQuantity()) {
+            final int otherLinesQty = cartItem.getCart().getItems().stream()
+                    .filter(i -> i != cartItem && i.getProduct().getId().equals(product.getId()))
+                    .mapToInt(CartItem::getQuantity)
+                    .sum();
+            int totalStock = getTotalStockQuantity(product);
+            if (otherLinesQty + request.getQuantity() > totalStock) {
                 throw new OutOfStockException(
                     product.getId(),
                     product.getName(),
                     request.getQuantity(),
-                    getTotalStockQuantity(product)
+                    Math.max(0, totalStock - otherLinesQty)
                 );
             }
 
@@ -440,10 +461,18 @@ public class CartServiceImpl implements ICartService {
                     continue;
                 }
 
-                // Check if product already in cart
+                // Check if the same product + color + size is already in cart
+                final String color = normalizeVariant(guestItem.getColor());
+                final String size = normalizeVariant(guestItem.getSize());
                 Optional<CartItem> existingItem = cart.getItems().stream()
                         .filter(item -> item.getProduct().getId().equals(product.getId()))
+                        .filter(item -> sameVariant(item, color, size))
                         .findFirst();
+                final int otherLinesQty = cart.getItems().stream()
+                        .filter(item -> item.getProduct().getId().equals(product.getId()))
+                        .filter(item -> existingItem.isEmpty() || item != existingItem.get())
+                        .mapToInt(CartItem::getQuantity)
+                        .sum();
 
                 if (existingItem.isPresent()) {
                     // Merge quantity if already exists
@@ -453,7 +482,7 @@ public class CartServiceImpl implements ICartService {
                         MAX_QUANTITY_PER_PRODUCT
                     );
                     
-                    if (newQuantity <= getTotalStockQuantity(product)) {
+                    if (otherLinesQty + newQuantity <= getTotalStockQuantity(product)) {
                         item.setQuantity(newQuantity);
                         cartItemRepository.save(item);
                         mergedCount++;
@@ -462,10 +491,17 @@ public class CartServiceImpl implements ICartService {
                     }
                 } else {
                     // Add new item if not exists
+                    int newQty = Math.min(guestItem.getQuantity(), MAX_QUANTITY_PER_PRODUCT);
+                    if (otherLinesQty + newQty > getTotalStockQuantity(product)) {
+                        skippedCount++;
+                        continue;
+                    }
                     CartItem newItem = CartItem.builder()
                             .cart(cart)
                             .product(product)
-                            .quantity(Math.min(guestItem.getQuantity(), MAX_QUANTITY_PER_PRODUCT))
+                            .quantity(newQty)
+                            .color(color)
+                            .size(size)
                             .build();
                     cartItemRepository.save(newItem);
                     cart.addItem(newItem);
@@ -500,6 +536,23 @@ public class CartServiceImpl implements ICartService {
                 .skippedItemsCount(skippedCount)
                 .message(message)
                 .build();
+    }
+
+    /** Chuẩn hóa màu/size: rỗng => null, bỏ khoảng trắng thừa. */
+    private static String normalizeVariant(String value) {
+        return (value == null || value.isBlank()) ? null : value.trim();
+    }
+
+    /** Hai dòng giỏ cùng biến thể khi màu và size giống nhau (null-safe, không phân biệt hoa/thường). */
+    private static boolean sameVariant(CartItem item, String color, String size) {
+        return equalsVariant(item.getColor(), color) && equalsVariant(item.getSize(), size);
+    }
+
+    private static boolean equalsVariant(String a, String b) {
+        String na = normalizeVariant(a);
+        String nb = normalizeVariant(b);
+        if (na == null || nb == null) return na == null && nb == null;
+        return na.equalsIgnoreCase(nb);
     }
 
     private void publishCartEvent(Cart cart, String eventType, Product product, Integer quantity) {

@@ -1080,7 +1080,7 @@ export const cartAPI = {
    * POST /api/v1/cart/merge
    */
   mergeGuestCart: async (data: {
-    guestCartItems?: { productId: number; quantity: number }[];
+    guestCartItems?: { productId: number; quantity: number; color?: string; size?: string }[];
     guestCartId?: string;
   }): Promise<ApiResponse<CartResponseData>> => {
     return fetchAPI<CartResponseData>("/cart/merge", {
@@ -1104,7 +1104,7 @@ export const guestCartAPI = {
    */
   replaceGuestCart: async (
     guestCartId: string,
-    data: { items: { productId: number; quantity: number }[] }
+    data: { items: { productId: number; quantity: number; color?: string; size?: string }[] }
   ): Promise<ApiResponse<null>> => {
     return fetchAPI<null>(`/guest-cart/${encodeURIComponent(guestCartId)}`, {
       method: "PUT",

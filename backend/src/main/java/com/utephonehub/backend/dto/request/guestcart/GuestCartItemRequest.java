@@ -21,4 +21,8 @@ public class GuestCartItemRequest {
     @Min(value = 1, message = "quantity tối thiểu là 1")
     @Max(value = 10, message = "quantity tối đa là 10")
     private Integer quantity;
+
+    private String color;
+
+    private String size;
 }
