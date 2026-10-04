@@ -35,6 +35,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -147,11 +148,6 @@ public class DashboardServiceImpl implements IDashboardService {
         List<String> labels = new ArrayList<>();
         List<Long> values = new ArrayList<>();
         List<Double> percentages = new ArrayList<>();
-        
-        // Count total orders
-        long totalOrders = orderRepository.count();
-        
-        log.debug("Total orders: {}", totalOrders);
 
         // Vietnamese labels for each OrderStatus
         Map<OrderStatus, String> statusLabels = Map.of(
@@ -162,9 +158,22 @@ public class DashboardServiceImpl implements IDashboardService {
                 OrderStatus.CANCELLED, "Đã hủy"
         );
 
-        // Count orders for each status
+        // ✅ FIX Bug 3: Use single query instead of 5 separate countByStatus() calls
+        List<Object[]> statusCounts = orderRepository.countOrdersByStatus();
+        Map<OrderStatus, Long> statusCountMap = new HashMap<>();
+        for (Object[] row : statusCounts) {
+            OrderStatus status = (OrderStatus) row[0];
+            Long count = (Long) row[1];
+            statusCountMap.put(status, count);
+        }
+
+        // Calculate total from aggregated counts
+        long totalOrders = statusCountMap.values().stream().mapToLong(Long::longValue).sum();
+        log.debug("Total orders: {}", totalOrders);
+
+        // Build chart data for each status (preserve enum order)
         for (OrderStatus status : OrderStatus.values()) {
-            long count = orderRepository.countByStatus(status);
+            long count = statusCountMap.getOrDefault(status, 0L);
             double percentage = totalOrders > 0 
                     ? (count * 100.0 / totalOrders) 
                     : 0.0;
@@ -282,10 +291,10 @@ public class DashboardServiceImpl implements IDashboardService {
     public List<RecentOrderResponse> getRecentOrders(int limit) {
         log.info("Fetching {} recent orders", limit);
 
-        // Validate and cap limit at 20
-        if (limit > 20) {
-            log.warn("Limit {} exceeds maximum 20, capping to 20", limit);
-            limit = 20;
+        // ✅ FIX Bug 4: Raised cap from 20 to 100 to match frontend's TOTAL_ORDERS_TO_FETCH
+        if (limit > 100) {
+            log.warn("Limit {} exceeds maximum 100, capping to 100", limit);
+            limit = 100;
         }
         if (limit < 1) {
             log.warn("Limit {} is less than 1, setting to default 10", limit);
