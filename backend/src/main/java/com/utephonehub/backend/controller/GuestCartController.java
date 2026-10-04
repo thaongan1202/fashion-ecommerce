@@ -1,6 +1,7 @@
 package com.utephonehub.backend.controller;
 
 import com.utephonehub.backend.dto.ApiResponse;
+import com.utephonehub.backend.dto.request.cart.MergeGuestCartRequest;
 import com.utephonehub.backend.dto.request.guestcart.GuestCartUpdateRequest;
 import com.utephonehub.backend.dto.response.guestcart.GuestCartSessionResponse;
 import com.utephonehub.backend.service.IGuestCartService;
@@ -12,6 +13,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/guest-cart")
@@ -52,5 +55,13 @@ public class GuestCartController {
     public ResponseEntity<ApiResponse<Void>> deleteGuestCart(@PathVariable String guestCartId) {
         guestCartService.deleteGuestCart(guestCartId);
         return ResponseEntity.ok(ApiResponse.success("Đã xóa guest cart", null));
+    }
+
+    @GetMapping("/{guestCartId}")
+    @Operation(summary = "Xem guest cart", description = "Lấy danh sách sản phẩm trong guest cart từ Redis")
+    public ResponseEntity<ApiResponse<List<MergeGuestCartRequest.GuestCartItem>>> getGuestCart(
+            @PathVariable String guestCartId) {
+        List<MergeGuestCartRequest.GuestCartItem> items = guestCartService.getItemsForMerge(guestCartId);
+        return ResponseEntity.ok(ApiResponse.success(items));
     }
 }
