@@ -13,6 +13,7 @@ import com.utephonehub.backend.entity.ProductTemplate;
 import com.utephonehub.backend.exception.BadRequestException;
 import com.utephonehub.backend.exception.ResourceNotFoundException;
 import com.utephonehub.backend.repository.CategoryRepository;
+import com.utephonehub.backend.repository.OrderItemRepository;
 import com.utephonehub.backend.repository.ProductRepository;
 import com.utephonehub.backend.repository.ReviewRepository;
 import com.utephonehub.backend.service.IProductViewService;
@@ -57,6 +58,7 @@ public class ProductViewServiceImpl implements IProductViewService {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final OrderItemRepository orderItemRepository;
     private final ReviewRepository reviewRepository;
     private final IPromotionService promotionService;
     private static final Pattern DIACRITICS_PATTERN = Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
@@ -192,6 +194,9 @@ public class ProductViewServiceImpl implements IProductViewService {
         
         boolean isAsc = "asc".equalsIgnoreCase(sortDirection);
         String normalizedSortBy = sortBy.trim().toLowerCase(Locale.ROOT);
+        Map<Long, Integer> soldCounts = isSoldCountSort(normalizedSortBy)
+                ? soldCountsByProduct(products)
+                : Collections.emptyMap();
         
         return products.stream()
                 .sorted((p1, p2) -> {
@@ -213,8 +218,8 @@ public class ProductViewServiceImpl implements IProductViewService {
                             break;
                         case "soldcount":
                         case "sold_count":
-                            int sold1 = calculateSoldCount(p1);
-                            int sold2 = calculateSoldCount(p2);
+                            int sold1 = soldCount(p1, soldCounts);
+                            int sold2 = soldCount(p2, soldCounts);
                             compare = Integer.compare(sold1, sold2);
                             break;
                         case "discountpercentage":
@@ -360,23 +365,21 @@ public class ProductViewServiceImpl implements IProductViewService {
     /**
      * Lấy sản phẩm bán chạy với caching
      * Cache TTL: 15 phút (bán chạy ít thay đổi hơn new arrivals)
-     * NOTE: Sold count hiện tại = 0, fallback theo createdAt DESC (mới nhất = nổi bật)
+     * Sold quantities come from delivered orders; newest products break ties.
      */
     @Override
     @Cacheable(value = "bestSellingProducts", key = "#limit != null ? #limit : 10", unless = "#result == null || #result.isEmpty()")
     public List<ProductCardResponse> getBestSellingProducts(Integer limit) {
         log.debug("🔥 getBestSellingProducts - limit: {} (CACHE MISS)", limit);
         int take = limitOrDefault(limit);
-        // Sử dụng query với LIMIT tại DB level
-        // TODO: Khi có OrderItemRepository, implement actual sold count query
-        Pageable pageable = PageRequest.of(0, take);
-        Page<Product> page = productRepository.findNewArrivalsOptimized(pageable);
+        List<Product> products = productRepository.findByStatusTrueAndIsDeletedFalse();
+        Map<Long, Integer> soldCounts = soldCountsByProduct(products);
         
         // Sort theo soldCount nếu có, fallback theo createdAt
-        List<Product> sorted = page.getContent().stream()
+        List<Product> sorted = products.stream()
                 .sorted((p1, p2) -> {
-                    Integer sold1 = calculateSoldCount(p1);
-                    Integer sold2 = calculateSoldCount(p2);
+                    Integer sold1 = soldCount(p1, soldCounts);
+                    Integer sold2 = soldCount(p2, soldCounts);
                     int soldCompare = sold2.compareTo(sold1);
                     if (soldCompare != 0) {
                         return soldCompare;
@@ -385,7 +388,7 @@ public class ProductViewServiceImpl implements IProductViewService {
                 })
                 .limit(take)
                 .collect(Collectors.toList());
-        return toCards(sorted);
+        return toCards(sorted, soldCounts);
     }
 
     /**
@@ -561,12 +564,13 @@ public class ProductViewServiceImpl implements IProductViewService {
         
         List<Product> allProducts = page.getContent();
         Map<Long, ReviewSummary> reviewStats = reviewStats(allProducts);
+        Map<Long, Integer> soldCounts = soldCountsByProduct(allProducts);
         
         // Thử filter theo tiêu chí đầy đủ trước
         List<Product> strictFeatured = allProducts.stream()
                 .filter(p -> {
                     ReviewSummary stats = reviewStats.get(p.getId());
-                    int soldCount = calculateSoldCount(p);
+                    int soldCount = soldCount(p, soldCounts);
                     double rating = stats != null ? stats.average : 0.0;
                     
                     // Tiêu chí nổi bật theo controller: rating >= 4.5, đã bán >= 100
@@ -601,7 +605,7 @@ public class ProductViewServiceImpl implements IProductViewService {
                     int ratingCompare = Double.compare(rating2, rating1);
                     if (ratingCompare != 0) return ratingCompare;
                     
-                    return Integer.compare(calculateSoldCount(p2), calculateSoldCount(p1));
+                    return Integer.compare(soldCount(p2, soldCounts), soldCount(p1, soldCounts));
                 })
                 .collect(Collectors.toList());
         
@@ -624,13 +628,14 @@ public class ProductViewServiceImpl implements IProductViewService {
     @Override
     public Page<ProductCardResponse> getBestSellingProductsPaginated(ProductSearchFilterRequest request) {
         Pageable pageable = buildPageable(request.getPage(), request.getSize(), request.getSortBy(), request.getSortDirection());
-        Page<Product> page = productRepository.findByStatusTrueAndIsDeletedFalse(pageable);
+        List<Product> products = productRepository.findByStatusTrueAndIsDeletedFalse();
+        Map<Long, Integer> soldCounts = soldCountsByProduct(products);
         
         // Sắp xếp theo số lượng đã bán (sold count) từ cao xuống thấp
-        List<Product> sorted = page.getContent().stream()
+        List<Product> sorted = products.stream()
                 .sorted((p1, p2) -> {
-                    Integer sold1 = calculateSoldCount(p1);
-                    Integer sold2 = calculateSoldCount(p2);
+                    Integer sold1 = soldCount(p1, soldCounts);
+                    Integer sold2 = soldCount(p2, soldCounts);
                     
                     // Nếu sold count khác nhau, sắp xếp theo sold count DESC
                     int soldCompare = sold2.compareTo(sold1);
@@ -643,7 +648,10 @@ public class ProductViewServiceImpl implements IProductViewService {
                 })
                 .collect(Collectors.toList());
         
-        return createPageFromList(sorted, pageable, page.getTotalElements());
+        int fromIndex = Math.min(pageable.getPageNumber() * pageable.getPageSize(), sorted.size());
+        int toIndex = Math.min(fromIndex + pageable.getPageSize(), sorted.size());
+        List<Product> pageContent = sorted.subList(fromIndex, toIndex);
+        return new PageImpl<>(toCards(pageContent, soldCounts), pageable, sorted.size());
     }
 
     @Override
@@ -821,7 +829,7 @@ public class ProductViewServiceImpl implements IProductViewService {
         return new PageImpl<>(content, pageable, total);
     }
 
-    private ProductCardResponse toCard(Product product, ReviewSummary reviewSummary) {
+    private ProductCardResponse toCard(Product product, ReviewSummary reviewSummary, int soldCount) {
         ProductTemplate template = displayTemplate(product);
         BigDecimal originalPrice = template != null ? template.getPrice() : null;
         DiscountResult discount = calculateDiscount(originalPrice);
@@ -853,6 +861,7 @@ public class ProductViewServiceImpl implements IProductViewService {
                 .inStock(hasStock(product))
                 .stockQuantity(totalStock(product))
                 .stockStatus(stockStatus(totalStock(product)))
+                .soldCount(soldCount)
                 .color(template != null ? template.getColor() : null)
                 .size(template != null ? template.getSize() : null)
                 .material(metadata != null ? metadata.getMaterial() : null)
@@ -1038,18 +1047,39 @@ public class ProductViewServiceImpl implements IProductViewService {
         return (limit != null && limit > 0) ? limit : 10;
     }
 
-    /**
-     * Tính số lượng đã bán của sản phẩm từ order_items
-     * TODO: Implement query to order_items table
-     * Hiện tại trả về 0 vì chưa có OrderItemRepository
-     */
-    private int calculateSoldCount(Product product) {
-        // TODO: Implement actual query to order_items
-        // Example: return orderItemRepository.sumQuantityByProductId(product.getId());
-        
-        // TEMPORARY: Return 0 until OrderItemRepository is implemented
-        // Do NOT use fake data for best-selling logic
-        return 0;
+    /** Load completed sales for multiple products without an N+1 query pattern. */
+    private Map<Long, Integer> soldCountsByProduct(List<Product> products) {
+        if (products == null || products.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        List<Long> productIds = products.stream()
+                .map(Product::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (productIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<Long, Integer> soldCounts = new HashMap<>();
+        for (Object[] row : orderItemRepository.countSoldQuantityByProductIds(productIds)) {
+            if (row == null || row.length < 2 || !(row[0] instanceof Number) || !(row[1] instanceof Number)) {
+                continue;
+            }
+            soldCounts.put(((Number) row[0]).longValue(), ((Number) row[1]).intValue());
+        }
+        return soldCounts;
+    }
+
+    private int soldCount(Product product, Map<Long, Integer> soldCounts) {
+        return product == null || product.getId() == null
+                ? 0
+                : soldCounts.getOrDefault(product.getId(), 0);
+    }
+
+    private boolean isSoldCountSort(String sortBy) {
+        return "soldcount".equals(sortBy) || "sold_count".equals(sortBy);
     }
 
     private Page<ProductCardResponse> toCardPage(Page<Product> page) {
@@ -1058,9 +1088,13 @@ public class ProductViewServiceImpl implements IProductViewService {
     }
 
     private List<ProductCardResponse> toCards(List<Product> products) {
+        return toCards(products, soldCountsByProduct(products));
+    }
+
+    private List<ProductCardResponse> toCards(List<Product> products, Map<Long, Integer> soldCounts) {
         Map<Long, ReviewSummary> stats = reviewStats(products);
         return products.stream()
-                .map(p -> toCard(p, stats.get(p.getId())))
+                .map(p -> toCard(p, stats.get(p.getId()), soldCount(p, soldCounts)))
                 .collect(Collectors.toList());
     }
 

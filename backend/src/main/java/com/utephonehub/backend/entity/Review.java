@@ -9,7 +9,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
-@Table(name = "reviews")
+@Table(name = "reviews", uniqueConstraints = @UniqueConstraint(
+        name = "uk_reviews_order_user_product",
+        columnNames = {"order_id", "user_id", "product_id"}))
 @Getter
 @Setter
 @NoArgsConstructor

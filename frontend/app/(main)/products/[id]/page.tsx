@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import { ProductCard } from '@/components/features/products/ProductCard';
+import { ProductReviews } from '@/components/features/reviews/ProductReviews';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useWishlistStore } from '@/store/wishlistStore';
@@ -642,20 +643,15 @@ export default function ProductDetailPage() {
 
             <TabsContent value="reviews" className="mt-0">
               <Card className="border-0 shadow-lg rounded-2xl overflow-hidden">
-                <CardContent className="p-8">
-                  <div className="text-center py-12">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-full mb-4">
-                      <Star className="w-8 h-8 text-primary" />
-                    </div>
-                    <h3 className="text-xl font-semibold mb-2">Đánh giá sản phẩm</h3>
-                    <p className="text-muted-foreground mb-6">
-                      Tính năng đánh giá đang được phát triển
-                    </p>
-                    <Button variant="outline" className="gap-2">
-                      Xem tất cả đánh giá
-                      <ArrowRight className="w-4 h-4" />
-                    </Button>
-                  </div>
+                <CardContent className="p-6 sm:p-8">
+                  <ProductReviews
+                    productId={productId}
+                    onSummaryChange={(summary) => setProduct((current) => current ? {
+                      ...current,
+                      averageRating: summary.averageRating,
+                      totalReviews: summary.totalReviews,
+                    } : current)}
+                  />
                 </CardContent>
               </Card>
             </TabsContent>

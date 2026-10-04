@@ -328,7 +328,8 @@ CREATE TABLE IF NOT EXISTS reviews (
     rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
     comment TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE (order_id, user_id, product_id)
 );
 
 -- Table: review_likes
