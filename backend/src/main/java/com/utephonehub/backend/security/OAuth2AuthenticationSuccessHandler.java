@@ -4,6 +4,7 @@ import com.utephonehub.backend.dto.response.auth.AuthResponse;
 import com.utephonehub.backend.entity.User;
 import com.utephonehub.backend.repository.UserRepository;
 import com.utephonehub.backend.service.impl.AuthServiceImpl;
+import com.utephonehub.backend.util.EmailAddressNormalizer;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -45,7 +46,8 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
                 return;
             }
 
-            User user = userRepository.findByEmail(email).orElse(null);
+            String normalizedEmail = EmailAddressNormalizer.normalize(email);
+            User user = userRepository.findByCanonicalEmail(normalizedEmail).orElse(null);
             if (user == null) {
                 log.error("User not found after successful Google login, email={}", email);
                 response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR,

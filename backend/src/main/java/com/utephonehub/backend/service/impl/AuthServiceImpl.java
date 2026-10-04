@@ -19,6 +19,7 @@ import com.utephonehub.backend.mapper.UserMapper;
 import com.utephonehub.backend.util.JwtTokenProvider;
 import com.utephonehub.backend.util.PasswordEncoder;
 import com.utephonehub.backend.util.OtpGenerator;
+import com.utephonehub.backend.util.EmailAddressNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -49,6 +50,7 @@ public class AuthServiceImpl implements IAuthService {
     @Transactional
     public UserResponse register(RegisterRequest request) {
         log.info("Registering new user with email: {}", request.getEmail());
+        String email = EmailAddressNormalizer.normalize(request.getEmail());
 
         // Validate password match
         if (request.getPassword() != null && request.getConfirmPassword() != null
@@ -57,7 +59,7 @@ public class AuthServiceImpl implements IAuthService {
         }
 
         // Check if email already exists
-        if (request.getEmail() != null && userRepository.existsByEmail(request.getEmail())) {
+        if (email != null && userRepository.findByCanonicalEmail(email).isPresent()) {
             throw new ConflictException("Email này đã được sử dụng");
         }
 
@@ -70,7 +72,7 @@ public class AuthServiceImpl implements IAuthService {
         User user = User.builder()
                 .username(request.getUsername())
                 .fullName(request.getFullName())
-                .email(request.getEmail())
+                .email(email)
                 .phoneNumber(request.getPhoneNumber())
                 .gender(request.getGender())
                 .dateOfBirth(request.getDateOfBirth())
@@ -107,6 +109,7 @@ public class AuthServiceImpl implements IAuthService {
     @Transactional
     public UserResponse registerAdmin(RegisterRequest request) {
         log.info("Registering new admin with email: {}", request.getEmail());
+        String email = EmailAddressNormalizer.normalize(request.getEmail());
 
         // Validate password match
         if (request.getPassword() != null && request.getConfirmPassword() != null
@@ -115,7 +118,7 @@ public class AuthServiceImpl implements IAuthService {
         }
 
         // Check if email already exists
-        if (request.getEmail() != null && userRepository.existsByEmail(request.getEmail())) {
+        if (email != null && userRepository.findByCanonicalEmail(email).isPresent()) {
             throw new ConflictException("Email này đã được sử dụng");
         }
 
@@ -128,7 +131,7 @@ public class AuthServiceImpl implements IAuthService {
         User user = User.builder()
                 .username(request.getUsername())
                 .fullName(request.getFullName())
-                .email(request.getEmail())
+                .email(email)
                 .phoneNumber(request.getPhoneNumber())
                 .gender(request.getGender())
                 .dateOfBirth(request.getDateOfBirth())
@@ -150,7 +153,8 @@ public class AuthServiceImpl implements IAuthService {
         log.info("User login attempt with usernameOrEmail: {}", request.getUsernameOrEmail());
 
         // Find user by email or username
-        User user = userRepository.findByEmail(request.getUsernameOrEmail())
+        String normalizedEmail = EmailAddressNormalizer.normalize(request.getUsernameOrEmail());
+        User user = userRepository.findByCanonicalEmail(normalizedEmail)
                 .or(() -> userRepository.findByUsername(request.getUsernameOrEmail()))
                 .orElseThrow(() -> new UnauthorizedException("Tên đăng nhập/email hoặc mật khẩu không chính xác"));
 
@@ -239,20 +243,21 @@ public class AuthServiceImpl implements IAuthService {
     @Transactional
     public void requestPasswordReset(ForgotPasswordRequest request) {
         log.info("Password reset request for email: {}", request.getEmail());
+        String email = EmailAddressNormalizer.normalize(request.getEmail());
 
-        User user = userRepository.findByEmail(request.getEmail())
+        User user = userRepository.findByCanonicalEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
 
         // Generate OTP
         String otp = otpGenerator.generateOtp();
 
         // Store OTP in Redis with expiration
-        String otpKey = OTP_PREFIX + request.getEmail();
+        String otpKey = OTP_PREFIX + email;
         redisTemplate.opsForValue().set(otpKey, otp, OTP_EXPIRATION_MINUTES, TimeUnit.MINUTES);
 
         // Send OTP via email
         try {
-            emailService.sendOtpEmail(request.getEmail(), otp);
+            emailService.sendOtpEmail(user.getEmail(), otp);
         } catch (Exception e) {
             log.error("Failed to send OTP email: {}", e.getMessage());
             throw new BadRequestException("Không thể gửi email OTP");
@@ -265,6 +270,7 @@ public class AuthServiceImpl implements IAuthService {
     @Transactional
     public void verifyOtpAndResetPassword(VerifyOtpRequest request) {
         log.info("Verifying OTP and resetting password for email: {}", request.getEmail());
+        String email = EmailAddressNormalizer.normalize(request.getEmail());
 
         // Validate input
         if (!request.getNewPassword().equals(request.getConfirmPassword())) {
@@ -276,7 +282,7 @@ public class AuthServiceImpl implements IAuthService {
         }
 
         // Verify OTP
-        String otpKey = OTP_PREFIX + request.getEmail();
+        String otpKey = OTP_PREFIX + email;
         String storedOtp = redisTemplate.opsForValue().get(otpKey);
 
         if (storedOtp == null || !storedOtp.equals(request.getOtp())) {
@@ -284,7 +290,7 @@ public class AuthServiceImpl implements IAuthService {
         }
 
         // Find user
-        User user = userRepository.findByEmail(request.getEmail())
+        User user = userRepository.findByCanonicalEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
 
         // Update password
@@ -310,8 +316,9 @@ public class AuthServiceImpl implements IAuthService {
     @Override
     public void verifyRegistrationOtp(VerifyRegistrationOtpRequest request) {
         log.info("Verifying registration OTP for email: {}", request.getEmail());
+        String email = EmailAddressNormalizer.normalize(request.getEmail());
 
-        String otpKey = REGISTER_OTP_PREFIX + request.getEmail();
+        String otpKey = REGISTER_OTP_PREFIX + email;
         String storedOtp = redisTemplate.opsForValue().get(otpKey);
 
         if (storedOtp == null || !storedOtp.equals(request.getOtp())) {
@@ -319,7 +326,7 @@ public class AuthServiceImpl implements IAuthService {
         }
 
         // Verify user exists
-        if (!userRepository.existsByEmail(request.getEmail())) {
+        if (userRepository.findByCanonicalEmail(email).isEmpty()) {
             throw new ResourceNotFoundException("Người dùng không tồn tại");
         }
 

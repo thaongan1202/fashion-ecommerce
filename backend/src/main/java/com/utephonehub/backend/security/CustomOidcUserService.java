@@ -8,6 +8,7 @@ import com.utephonehub.backend.exception.UnauthorizedException;
 import com.utephonehub.backend.repository.CartRepository;
 import com.utephonehub.backend.repository.UserRepository;
 import com.utephonehub.backend.util.PasswordEncoder;
+import com.utephonehub.backend.util.EmailAddressNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
@@ -30,13 +31,14 @@ public class CustomOidcUserService extends OidcUserService {
     public OidcUser loadUser(OidcUserRequest userRequest) {
         OidcUser oidcUser = super.loadUser(userRequest);
 
-        String email = oidcUser.getEmail();
-        if (email == null || email.isBlank()) {
+        String providerEmail = oidcUser.getEmail();
+        if (providerEmail == null || providerEmail.isBlank()) {
             log.error("Google account does not provide email, cannot proceed with OAuth2 login");
             throw new UnauthorizedException("Không thể đăng nhập bằng Google: tài khoản không có email");
         }
+        String email = EmailAddressNormalizer.normalize(providerEmail);
 
-        User user = userRepository.findByEmail(email).orElse(null);
+        User user = userRepository.findByCanonicalEmail(email).orElse(null);
 
         if (user != null) {
             if (user.getStatus() == UserStatus.LOCKED) {
@@ -48,10 +50,10 @@ public class CustomOidcUserService extends OidcUserService {
 
         String fullName = oidcUser.getFullName();
         if (fullName == null || fullName.isBlank()) {
-            fullName = email.substring(0, email.indexOf('@'));
+            fullName = providerEmail.substring(0, providerEmail.indexOf('@'));
         }
 
-        String baseUsername = email.substring(0, email.indexOf('@'));
+        String baseUsername = providerEmail.substring(0, providerEmail.indexOf('@'));
         String username = baseUsername;
         int counter = 1;
         while (userRepository.existsByUsername(username)) {
