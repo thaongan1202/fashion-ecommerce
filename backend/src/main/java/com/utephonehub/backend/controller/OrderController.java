@@ -161,7 +161,7 @@ public class OrderController {
 	// ========================================
 
 	@PostMapping("/{orderId}/cancel")
-	@Operation(summary = "Hủy đơn hàng", description = "Khách hàng tự hủy đơn hàng của mình.  Chỉ có thể hủy đơn hàng ở trạng thái 'Chờ xác nhận'.")
+	@Operation(summary = "Hủy đơn hàng", description = "Khách hàng tự hủy đơn hàng của mình trước khi vận chuyển.")
 	@SecurityRequirement(name = "bearerAuth")
 	public ResponseEntity<ApiResponse<String>> cancelMyOrder(
 			@Parameter(description = "ID đơn hàng", required = true, example = "1") @PathVariable Long orderId,
@@ -171,11 +171,11 @@ public class OrderController {
 		orderService.cancelMyOrder(orderId, userId);
 
 		return ResponseEntity.ok(ApiResponse.success("Hủy đơn hàng thành công",
-				"Đơn hàng đã được hủy.  Nếu đã thanh toán, chúng tôi sẽ hoàn tiền trong 3-5 ngày làm việc."));
+				"Đơn hàng đã được hủy và tồn kho đã được hoàn lại. Nếu đã thanh toán, chúng tôi sẽ hoàn tiền trong 3-5 ngày làm việc."));
 	}
 
 	@GetMapping("/{orderId}/can-cancel")
-	@Operation(summary = "Kiểm tra có thể hủy đơn hàng", description = "Kiểm tra xem đơn hàng có thể bị hủy bởi khách hàng hay không")
+	@Operation(summary = "Kiểm tra có thể hủy đơn hàng", description = "Kiểm tra xem đơn hàng có thể bị hủy bởi khách hàng hay không (trước khi vận chuyển)")
 	@SecurityRequirement(name = "bearerAuth")
 	public ResponseEntity<ApiResponse<Boolean>> canCancelOrder(
 			@Parameter(description = "ID đơn hàng", required = true, example = "1") @PathVariable Long orderId,
@@ -185,7 +185,7 @@ public class OrderController {
 		boolean canCancel = orderService.canCancelOrder(orderId, userId);
 
 		String message = canCancel ? "Đơn hàng có thể bị hủy"
-				: "Đơn hàng không thể hủy (không phải trạng thái 'Chờ xác nhận' hoặc không thuộc về bạn)";
+				: "Đơn hàng không thể hủy (đã vận chuyển/hoàn thành hoặc không thuộc về bạn)";
 
 		return ResponseEntity.ok(ApiResponse.success(message, canCancel));
 	}

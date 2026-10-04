@@ -23,6 +23,9 @@ import com.utephonehub.backend.exception.BadRequestException;
 import com.utephonehub.backend.exception.ForbiddenException;
 import com.utephonehub.backend.exception.ResourceNotFoundException;
 import com.utephonehub.backend.mapper.OrderMapper;
+import com.utephonehub.backend.entity.OrderStatusHistory;
+import com.utephonehub.backend.enums.EPromotionStatus;
+import com.utephonehub.backend.repository.OrderStatusHistoryRepository;
 import com.utephonehub.backend.repository.CartItemRepository;
 import com.utephonehub.backend.repository.CartRepository;
 import com.utephonehub.backend.repository.OrderItemRepository;
@@ -42,22 +45,17 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java. util.stream.Collectors;
+import java.util.stream.Collectors;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -76,6 +74,7 @@ public class OrderServiceImpl implements IOrderService {
     private final IVNPayService vnPayService;
     private final SecurityUtils securityUtils;
     private final IEmailService emailService;
+    private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     
     @Override
     @Transactional(readOnly = true)
@@ -170,33 +169,80 @@ public class OrderServiceImpl implements IOrderService {
         // 5. Áp dụng promotion nếu có (2 loại: DISCOUNT/VOUCHER và FREESHIP)
         Promotion promotion = null;
         Promotion freeshippingPromotion = null;
+        LocalDateTime now = LocalDateTime.now();
         
         // Xử lý promotion (DISCOUNT/VOUCHER)
         if (request.getPromotionId() != null) {
-            try {
-                promotion = promotionRepository.findById(String.valueOf(request.getPromotionId()))
-                        .orElseThrow(() -> new ResourceNotFoundException("Promotion không tồn tại"));
-                
-                // TODO: Validate promotion còn hiệu lực, đủ điều kiện áp dụng
-                // Tính discount và trừ vào totalAmount (sẽ implement sau)
-            } catch (ResourceNotFoundException e) {
-                // Nếu promotion không hợp lệ, bỏ qua và tiếp tục
-                log.warn("Invalid promotionId: {}, error: {}", request.getPromotionId(), e.getMessage());
-                promotion = null;
+            promotion = promotionRepository.findById(String.valueOf(request.getPromotionId()))
+                    .orElseThrow(() -> new BadRequestException("Mã khuyến mãi không tồn tại"));
+            
+            // Validate trạng thái hoạt động
+            if (promotion.getStatus() != EPromotionStatus.ACTIVE) {
+                throw new BadRequestException("Mã khuyến mãi không còn hoạt động hoặc đã bị vô hiệu hóa");
             }
+            
+            // Validate thời gian hiệu lực
+            if (promotion.getEffectiveDate() != null && now.isBefore(promotion.getEffectiveDate())) {
+                throw new BadRequestException("Mã khuyến mãi chưa đến thời gian có hiệu lực");
+            }
+            if (promotion.getExpirationDate() != null && now.isAfter(promotion.getExpirationDate())) {
+                throw new BadRequestException("Mã khuyến mãi đã hết hạn sử dụng");
+            }
+            
+            // Validate giá trị đơn hàng tối thiểu
+            if (promotion.getMinValueToBeApplied() != null 
+                    && totalAmount.compareTo(BigDecimal.valueOf(promotion.getMinValueToBeApplied())) < 0) {
+                throw new BadRequestException(
+                    String.format("Đơn hàng chưa đạt giá trị tối thiểu %,.0f VNĐ để áp dụng mã khuyến mãi", 
+                        promotion.getMinValueToBeApplied())
+                );
+            }
+            
+            // Tính số tiền được giảm giá
+            BigDecimal discountAmount = BigDecimal.ZERO;
+            if (promotion.getFixedAmount() != null && promotion.getFixedAmount() > 0) {
+                discountAmount = BigDecimal.valueOf(promotion.getFixedAmount());
+            } else if (promotion.getPercentDiscount() != null && promotion.getPercentDiscount() > 0) {
+                discountAmount = totalAmount.multiply(BigDecimal.valueOf(promotion.getPercentDiscount() / 100.0));
+                if (promotion.getMaxDiscount() != null && promotion.getMaxDiscount() > 0) {
+                    BigDecimal maxDisc = BigDecimal.valueOf(promotion.getMaxDiscount());
+                    if (discountAmount.compareTo(maxDisc) > 0) {
+                        discountAmount = maxDisc;
+                    }
+                }
+            }
+            
+            // Trừ số tiền giảm giá vào tổng đơn hàng
+            totalAmount = totalAmount.subtract(discountAmount);
+            if (totalAmount.compareTo(BigDecimal.ZERO) < 0) {
+                totalAmount = BigDecimal.ZERO;
+            }
+            log.info("Applied promotion {}: discount amount = {}, new total = {}", 
+                    promotion.getId(), discountAmount, totalAmount);
         }
         
         // Xử lý freeship promotion (FREESHIP)
         if (request.getFreeshippingPromotionId() != null) {
-            try {
-                freeshippingPromotion = promotionRepository.findById(String.valueOf(request.getFreeshippingPromotionId()))
-                        .orElseThrow(() -> new ResourceNotFoundException("Freeship promotion không tồn tại"));
-                
-                // TODO: Validate freeship promotion còn hiệu lực
-            } catch (ResourceNotFoundException e) {
-                log.warn("Invalid freeshippingPromotionId: {}, error: {}", request.getFreeshippingPromotionId(), e.getMessage());
-                freeshippingPromotion = null;
+            freeshippingPromotion = promotionRepository.findById(String.valueOf(request.getFreeshippingPromotionId()))
+                    .orElseThrow(() -> new BadRequestException("Mã miễn phí vận chuyển không tồn tại"));
+            
+            if (freeshippingPromotion.getStatus() != EPromotionStatus.ACTIVE) {
+                throw new BadRequestException("Mã miễn phí vận chuyển không còn hoạt động");
             }
+            if (freeshippingPromotion.getEffectiveDate() != null && now.isBefore(freeshippingPromotion.getEffectiveDate())) {
+                throw new BadRequestException("Mã miễn phí vận chuyển chưa đến thời gian áp dụng");
+            }
+            if (freeshippingPromotion.getExpirationDate() != null && now.isAfter(freeshippingPromotion.getExpirationDate())) {
+                throw new BadRequestException("Mã miễn phí vận chuyển đã hết hạn sử dụng");
+            }
+            if (freeshippingPromotion.getMinValueToBeApplied() != null 
+                    && totalAmount.compareTo(BigDecimal.valueOf(freeshippingPromotion.getMinValueToBeApplied())) < 0) {
+                throw new BadRequestException(
+                    String.format("Đơn hàng chưa đạt giá trị tối thiểu %,.0f VNĐ để áp dụng miễn phí vận chuyển", 
+                        freeshippingPromotion.getMinValueToBeApplied())
+                );
+            }
+            log.info("Applied freeshipping promotion {}", freeshippingPromotion.getId());
         }
         
         // 6. Tạo orderCode unique
@@ -515,11 +561,11 @@ public class OrderServiceImpl implements IOrderService {
             throw new ForbiddenException("Bạn không có quyền hủy đơn hàng này");
         }
         
-        // 3. Kiểm tra trạng thái có thể hủy
-        if (order.getStatus() != OrderStatus.PENDING) {
+        // 3. Kiểm tra trạng thái có thể hủy (Cho phép hủy khi PENDING hoặc CONFIRMED trước khi giao)
+        if (order.getStatus() != OrderStatus.PENDING && order.getStatus() != OrderStatus.CONFIRMED) {
             log.warn("Cannot cancel order {} with status {}", orderId, order.getStatus());
             throw new BadRequestException(
-                String.format("Không thể hủy đơn hàng ở trạng thái '%s'. Chỉ có thể hủy đơn hàng ở trạng thái 'Chờ xác nhận'.", 
+                String.format("Không thể hủy đơn hàng ở trạng thái '%s'. Chỉ có thể hủy đơn hàng trước khi vận chuyển.", 
                     getStatusDisplayName(order.getStatus()))
             );
         }
@@ -532,22 +578,19 @@ public class OrderServiceImpl implements IOrderService {
         // 5. Lưu đơn hàng
         orderRepository.save(order);
         
-        // 6. Ghi log lịch sử trạng thái (nếu có bảng order_status_history)
+        // 6. Ghi log lịch sử trạng thái
         try {
             saveOrderStatusHistory(order, OrderStatus.CANCELLED, "Khách hàng tự hủy đơn");
         } catch (Exception e) {
-            log.warn("Failed to save order status history for order {}:  {}", orderId, e.getMessage());
+            log.warn("Failed to save order status history for order {}: {}", orderId, e.getMessage());
         }
         
-        // 7. Hoàn lại tồn kho nếu đã trừ (đối với đơn COD/Bank Transfer)
-        if (order.getPaymentMethod() != PaymentMethod.VNPAY) {
-            try {
-                restoreProductStock(order);
-                log.info("Product stock restored for cancelled order: {}", order.getOrderCode());
-            } catch (Exception e) {
-                log.error("Failed to restore stock for cancelled order {}: {}", orderId, e.getMessage());
-                // Không throw exception để không làm thất bại việc hủy đơn
-            }
+        // 7. Hoàn lại tồn kho cho các sản phẩm trong đơn hàng
+        try {
+            restoreProductStock(order);
+            log.info("Product stock restored for cancelled order: {}", order.getOrderCode());
+        } catch (Exception e) {
+            log.error("Failed to restore stock for cancelled order {}: {}", orderId, e.getMessage());
         }
         
         log.info("Order {} successfully cancelled by user {}. Status changed from {} to {}", 
@@ -568,10 +611,10 @@ public class OrderServiceImpl implements IOrderService {
                 return false;
             }
             
-            // Chỉ có thể hủy khi ở trạng thái PENDING
-            boolean canCancel = order.getStatus() == OrderStatus.PENDING;
+            // Có thể hủy khi PENDING hoặc CONFIRMED
+            boolean canCancel = order.getStatus() == OrderStatus.PENDING || order.getStatus() == OrderStatus.CONFIRMED;
             
-            log.info("Order {} can be cancelled:  {}", orderId, canCancel);
+            log.info("Order {} can be cancelled: {}", orderId, canCancel);
             return canCancel;
             
         } catch (Exception e) {
@@ -595,32 +638,56 @@ public class OrderServiceImpl implements IOrderService {
     }
     
     private void saveOrderStatusHistory(Order order, OrderStatus newStatus, String note) {
-        // Tạo record trong order_status_history 
-        
-        log.info("Order {} status changed to {} with note: {}", order.getOrderCode(), newStatus, note);
+        try {
+            OrderStatusHistory history = OrderStatusHistory.builder()
+                    .order(order)
+                    .status(newStatus)
+                    .changedBy(note != null ? note : "USER")
+                    .build();
+            orderStatusHistoryRepository.save(history);
+            log.info("Saved order status history for {}: status = {}, note = {}", order.getOrderCode(), newStatus, note);
+        } catch (Exception e) {
+            log.warn("Failed to save order status history for {}: {}", order.getOrderCode(), e.getMessage());
+        }
     }
     
     private void restoreProductStock(Order order) {
         log.info("Restoring stock for cancelled order: {}", order.getOrderCode());
         
-        
         List<OrderItem> orderItems = order.getItems();
-        
         if (orderItems == null || orderItems.isEmpty()) {
             log.info("No order items found for order: {}", order.getOrderCode());
             return;
         }
         
-        // Note: Stock is managed at ProductTemplate level, not Product level
-        // If stock restoration is needed, it should be done at ProductTemplate level
         for (OrderItem item : orderItems) {
             Product product = item.getProduct();
-            if (product != null) {
-                log.info("Order item restored for product: {} (quantity: {})", 
-                        product.getId(), item.getQuantity());
-                // TODO: Restore stock at ProductTemplate level if needed
+            if (product != null && product.getTemplates() != null && !product.getTemplates().isEmpty()) {
+                int remainingToRestore = item.getQuantity();
+                
+                // Trả lại tồn kho cho các biến thể active trước
+                for (ProductTemplate template : product.getTemplates()) {
+                    if (remainingToRestore <= 0) break;
+                    if (template.getStatus() != null && template.getStatus()) {
+                        int currentStock = template.getStockQuantity() != null ? template.getStockQuantity() : 0;
+                        template.setStockQuantity(currentStock + remainingToRestore);
+                        log.info("Restored {} stock for product {} template SKU {}: {} -> {}", 
+                                remainingToRestore, product.getId(), template.getSku(), currentStock, template.getStockQuantity());
+                        remainingToRestore = 0;
+                    }
+                }
+                
+                // Nếu chưa trả hết (không tìm thấy active template), trả cho template đầu tiên
+                if (remainingToRestore > 0) {
+                    ProductTemplate template = product.getTemplates().get(0);
+                    int currentStock = template.getStockQuantity() != null ? template.getStockQuantity() : 0;
+                    template.setStockQuantity(currentStock + remainingToRestore);
+                    log.info("Restored remaining {} stock for fallback template SKU {}", remainingToRestore, template.getSku());
+                }
+                
+                productRepository.save(product);
             } else {
-                log.warn("Product not found for order item: {}", item.getId());
+                log.warn("Product or product templates not found for order item: {}", item.getId());
             }
         }
     }

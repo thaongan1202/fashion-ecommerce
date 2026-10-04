@@ -5,10 +5,16 @@ import com.utephonehub.backend.dto.request.order.AdminOrderFilterRequest;
 import com.utephonehub.backend.dto.response.order.AdminOrderDetailResponse;
 import com.utephonehub.backend.dto.response.order.AdminOrderListResponse;
 import com.utephonehub.backend.entity.Order;
+import com.utephonehub.backend.entity.OrderItem;
+import com.utephonehub.backend.entity.OrderStatusHistory;
+import com.utephonehub.backend.entity.Product;
+import com.utephonehub.backend.entity.ProductTemplate;
 import com.utephonehub.backend.enums.OrderStatus;
 import com.utephonehub.backend.exception.BadRequestException;
 import com.utephonehub.backend.exception.ResourceNotFoundException;
 import com.utephonehub.backend.repository.OrderRepository;
+import com.utephonehub.backend.repository.OrderStatusHistoryRepository;
+import com.utephonehub.backend.repository.ProductRepository;
 import com.utephonehub.backend.service.IAdminOrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.*;
@@ -31,6 +38,8 @@ import java.util.stream.Collectors;
 public class AdminOrderServiceImpl implements IAdminOrderService {
 
 	private final OrderRepository orderRepository;
+	private final ProductRepository productRepository;
+	private final OrderStatusHistoryRepository orderStatusHistoryRepository;
 
 	@Override
 	@Transactional(readOnly = true)
@@ -113,7 +122,7 @@ public class AdminOrderServiceImpl implements IAdminOrderService {
 	@Override
 	@Transactional
 	public AdminOrderDetailResponse updateOrderStatus(Long orderId, OrderStatus newStatus, String adminNote) {
-		log.info("Admin updating order {} to status: {}", orderId, newStatus);
+		log.info("Admin updating order {} to status: {} with note: {}", orderId, newStatus, adminNote);
 
 		Order order = orderRepository.findById(orderId).orElseThrow(() -> {
 			log.error("Order not found: {}", orderId);
@@ -127,19 +136,81 @@ public class AdminOrderServiceImpl implements IAdminOrderService {
 					String.format("Cannot change order status from %s to %s", order.getStatus(), newStatus));
 		}
 
-		// Update order status
 		OrderStatus oldStatus = order.getStatus();
 		order.setStatus(newStatus);
 		order.setUpdatedAt(LocalDateTime.now());
+
+		// Ghi nhận admin note nếu có
+		if (adminNote != null && !adminNote.trim().isEmpty()) {
+			String currentNote = order.getNote();
+			String noteToAdd = "[Admin Note]: " + adminNote.trim();
+			if (currentNote == null || currentNote.trim().isEmpty()) {
+				order.setNote(noteToAdd);
+			} else {
+				order.setNote(currentNote + " | " + noteToAdd);
+			}
+		}
+
+		// Save order status history
+		try {
+			OrderStatusHistory history = OrderStatusHistory.builder()
+					.order(order)
+					.status(newStatus)
+					.changedBy(adminNote != null && !adminNote.trim().isEmpty() ? "ADMIN: " + adminNote.trim() : "ADMIN")
+					.build();
+			orderStatusHistoryRepository.save(history);
+			log.info("Saved order status history for order {}", order.getOrderCode());
+		} catch (Exception e) {
+			log.warn("Failed to save order status history for order {}: {}", orderId, e.getMessage());
+		}
+
+		// Restore stock if cancelled by Admin
+		if (newStatus == OrderStatus.CANCELLED && oldStatus != OrderStatus.CANCELLED) {
+			try {
+				restoreProductStock(order);
+				log.info("Restored stock for order {} cancelled by Admin", order.getOrderCode());
+			} catch (Exception e) {
+				log.error("Failed to restore stock for order {} cancelled by Admin: {}", orderId, e.getMessage());
+			}
+		}
 
 		// Save order
 		Order updatedOrder = orderRepository.save(order);
 
 		log.info("Successfully updated order {} from {} to {}", orderId, oldStatus, newStatus);
 
-		// TODO: Save status history with admin note (can be enhanced later)
-
 		return AdminOrderDetailResponse.fromEntity(updatedOrder);
+	}
+
+	private void restoreProductStock(Order order) {
+		List<OrderItem> orderItems = order.getItems();
+		if (orderItems == null || orderItems.isEmpty()) {
+			return;
+		}
+
+		for (OrderItem item : orderItems) {
+			Product product = item.getProduct();
+			if (product != null && product.getTemplates() != null && !product.getTemplates().isEmpty()) {
+				int remainingToRestore = item.getQuantity();
+
+				for (ProductTemplate template : product.getTemplates()) {
+					if (remainingToRestore <= 0) break;
+					if (template.getStatus() != null && template.getStatus()) {
+						int currentStock = template.getStockQuantity() != null ? template.getStockQuantity() : 0;
+						template.setStockQuantity(currentStock + remainingToRestore);
+						remainingToRestore = 0;
+					}
+				}
+
+				if (remainingToRestore > 0) {
+					ProductTemplate template = product.getTemplates().get(0);
+					int currentStock = template.getStockQuantity() != null ? template.getStockQuantity() : 0;
+					template.setStockQuantity(currentStock + remainingToRestore);
+				}
+
+				productRepository.save(product);
+			}
+		}
 	}
 
 	@Override
@@ -233,8 +304,19 @@ public class AdminOrderServiceImpl implements IAdminOrderService {
 
 		for (Order order : orders) {
 			if (isValidStatusTransition(order.getStatus(), newStatus)) {
+				OrderStatus oldStatus = order.getStatus();
 				order.setStatus(newStatus);
 				order.setUpdatedAt(LocalDateTime.now());
+
+				// ✅ FIX Bug 6: Restore stock when bulk cancelling orders
+				if (newStatus == OrderStatus.CANCELLED && oldStatus != OrderStatus.CANCELLED) {
+					try {
+						restoreProductStock(order);
+						log.info("Restored stock for bulk-cancelled order {}", order.getOrderCode());
+					} catch (Exception e) {
+						log.error("Failed to restore stock for bulk-cancelled order {}: {}", order.getId(), e.getMessage());
+					}
+				}
 			} else {
 				log.warn("Skipping invalid transition for order {}:  {} -> {}", order.getId(), order.getStatus(),
 						newStatus);
@@ -266,7 +348,7 @@ public class AdminOrderServiceImpl implements IAdminOrderService {
 			summary.put("totalRevenue", totalRevenue != null ? totalRevenue : BigDecimal.ZERO);
 			summary.put("averageOrderValue",
 					totalOrders > 0 && totalRevenue != null
-							? totalRevenue.divide(BigDecimal.valueOf(totalOrders), 2, BigDecimal.ROUND_HALF_UP)
+							? totalRevenue.divide(BigDecimal.valueOf(totalOrders), 2, RoundingMode.HALF_UP)
 							: BigDecimal.ZERO);
 
 			return summary;

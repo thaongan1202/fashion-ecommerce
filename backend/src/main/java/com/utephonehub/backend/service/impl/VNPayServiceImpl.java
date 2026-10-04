@@ -187,16 +187,26 @@ public class VNPayServiceImpl implements IVNPayService {
         fields.remove("vnp_SecureHash");
         
         // 4. Verify signature
+        // 4. Verify signature (case-insensitive for hex hashes)
         String hashData = VNPayUtil.buildHashData(fields);
         String calculatedHash = VNPayUtil.hmacSHA512(vnPayConfig.getHashSecret(), hashData);
-        boolean signatureValid = calculatedHash.equals(vnpSecureHash);
+        boolean signatureValid = calculatedHash != null && calculatedHash.equalsIgnoreCase(vnpSecureHash);
         
         // 5. Get transaction info
         String vnpTxnRef = request.getParameter("vnp_TxnRef"); // This is orderCode
         String vnpTransactionNo = request.getParameter("vnp_TransactionNo");
         String vnpResponseCode = request.getParameter("vnp_ResponseCode");
         String vnpTransactionStatus = request.getParameter("vnp_TransactionStatus");
-        long vnpAmount = Long.parseLong(request.getParameter("vnp_Amount")) / 100; // Convert back from VNPay format
+        
+        long vnpAmount = 0;
+        String rawAmount = request.getParameter("vnp_Amount");
+        if (rawAmount != null && !rawAmount.trim().isEmpty()) {
+            try {
+                vnpAmount = Long.parseLong(rawAmount.trim()) / 100;
+            } catch (NumberFormatException e) {
+                log.warn("Failed to parse vnp_Amount: {}", rawAmount);
+            }
+        }
         
         // 6. Find order by order code
         Order order = orderRepository.findByOrderCode(vnpTxnRef)
