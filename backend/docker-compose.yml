@@ -1,0 +1,86 @@
+services:
+  # 1. DATABASE
+  postgres:
+    # Keep the major version aligned with the existing postgres_data volume.
+    image: postgres:15
+    container_name: utephonehub-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/000_init.sql
+      - ./migrations/001_add_version_columns.sql:/docker-entrypoint-initdb.d/001_add_version_columns.sql
+      - ./migrations/002_add_promotion_discount_fields.sql:/docker-entrypoint-initdb.d/002_add_promotion_discount_fields.sql
+      - ./migrations/003_seed_products_data.sql:/docker-entrypoint-initdb.d/003_seed_products_data.sql
+      - ./migrations/004_add_product_images.sql:/docker-entrypoint-initdb.d/004_add_product_images.sql
+      - ./migrations/005_import_real_products.sql:/docker-entrypoint-initdb.d/005_import_real_products.sql
+      - ./migrations/006_seed_promotions.sql:/docker-entrypoint-initdb.d/006_seed_promotions.sql
+      - ./migrations/007_seed_address_data.sql:/docker-entrypoint-initdb.d/007_seed_address_data.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ute-net
+
+  # 2. REDIS
+  redis:
+    image: redis:7-alpine
+    container_name: utephonehub-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - ute-net
+
+  # 3. BACKEND API
+  backend:
+    build: .
+    container_name: utephonehub-backend
+    ports:
+      - "8081:8081"
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=${DB_HOST}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - DB_USERNAME=${DB_USERNAME:-${POSTGRES_USER}}
+      - DB_PASSWORD=${DB_PASSWORD:-${POSTGRES_PASSWORD}}
+      - REDIS_HOST=${REDIS_HOST}
+      - MAIL_HOST=${MAIL_HOST}
+      - MAIL_PORT=${MAIL_PORT}
+      - MAIL_USERNAME=${MAIL_USERNAME}
+      - MAIL_PASSWORD=${MAIL_PASSWORD}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRATION=${JWT_EXPIRATION}
+      - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION}
+      - VNPAY_TMN_CODE=${VNPAY_TMN_CODE}
+      - VNPAY_HASH_SECRET=${VNPAY_HASH_SECRET}
+      - VNPAY_URL=${VNPAY_URL}
+      - VNPAY_RETURN_URL=${VNPAY_RETURN_URL}
+      - FRONTEND_URL=${FRONTEND_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./src:/app/src
+      - review_uploads:/app/uploads/reviews
+    networks:
+      - ute-net
+
+volumes:
+  postgres_data:
+  review_uploads:
+
+networks:
+  ute-net:
+    name: ute-network
+    driver: bridge
