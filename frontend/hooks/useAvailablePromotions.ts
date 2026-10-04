@@ -51,6 +51,14 @@ export function useAvailablePromotions(orderTotal: number) {
         promotionId,
         orderTotal
       );
+
+      // Kiểm tra API trả về success=false (TC-M04-05: voucher hết hạn/không đủ điều kiện)
+      if (!response.success) {
+        const errorMessage = response.message || "Voucher không khả thi";
+        setError(errorMessage);
+        return { success: false, error: errorMessage };
+      }
+
       const discount = response.data;
       const promotion = promotions.find((p) => p.id === promotionId);
 
@@ -62,8 +70,11 @@ export function useAvailablePromotions(orderTotal: number) {
 
       return { success: false, discount: 0 };
     } catch (err: any) {
+      // Ưu tiên lấy message từ backend (TC-M04-05: "Voucher không khả thi: ...")
       const errorMessage =
-        err.response?.data?.message || "Không thể áp dụng mã giảm giá này";
+        err?.response?.data?.message ||
+        err?.message ||
+        "Voucher không khả thi";
       setError(errorMessage);
       return { success: false, error: errorMessage };
     } finally {

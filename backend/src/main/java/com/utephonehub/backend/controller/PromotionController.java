@@ -97,11 +97,38 @@ public class PromotionController {
     }
 
     @GetMapping("/promotions/calculate")
-    @Operation(summary = "[Customer] Apply Promotion - Tính toán tiền giảm giá")
+    @Operation(summary = "[Customer] Apply Promotion - Tính toán tiền giảm giá (GET)")
     public ResponseEntity<ApiResponse<Double>> calculateDiscount(
             @RequestParam String promotionId,
             @RequestParam Double orderTotal) {
-        Double discountAmount = promotionService.calculateDiscount(promotionId, orderTotal);
-        return ResponseEntity.ok(ApiResponse.success(discountAmount));
+        try {
+            Double discountAmount = promotionService.calculateDiscount(promotionId, orderTotal);
+            return ResponseEntity.ok(ApiResponse.success(discountAmount));
+        } catch (com.utephonehub.backend.exception.promotion.PromotionInvalidException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(HttpStatus.BAD_REQUEST.value(), e.getMessage()));
+        } catch (com.utephonehub.backend.exception.promotion.PromotionNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(HttpStatus.NOT_FOUND.value(), e.getMessage()));
+        }
+    }
+
+    @PostMapping("/promotions/calculate-discount")
+    @Operation(summary = "[Customer] Calculate Discount - Tính toán tiền giảm giá (POST)",
+               description = "Tính toán số tiền giảm giá dựa trên promotionId và tổng đơn hàng. " +
+                           "Trả về lỗi 'Voucher không khả thi' nếu voucher hết hạn hoặc không đủ điều kiện.")
+    public ResponseEntity<ApiResponse<Double>> calculateDiscountPost(
+            @RequestParam String promotionId,
+            @RequestParam Double orderTotal) {
+        try {
+            Double discountAmount = promotionService.calculateDiscount(promotionId, orderTotal);
+            return ResponseEntity.ok(ApiResponse.success("Tính giảm giá thành công", discountAmount));
+        } catch (com.utephonehub.backend.exception.promotion.PromotionInvalidException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(HttpStatus.BAD_REQUEST.value(), e.getMessage()));
+        } catch (com.utephonehub.backend.exception.promotion.PromotionNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(HttpStatus.NOT_FOUND.value(), "Voucher không tồn tại"));
+        }
     }
 }

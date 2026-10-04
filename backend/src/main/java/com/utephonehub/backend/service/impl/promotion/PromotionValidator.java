@@ -32,7 +32,7 @@ public class PromotionValidator {
      */
     public void validatePromotionActive(Promotion promotion) {
         if (promotion.getStatus() != EPromotionStatus.ACTIVE) {
-            throw new PromotionInvalidException("Promotion is not active");
+            throw new PromotionInvalidException("Voucher không khả thi: Khuyến mãi không còn hoạt động");
         }
     }
 
@@ -41,11 +41,12 @@ public class PromotionValidator {
      */
     public void validatePromotionDateRange(Promotion promotion) {
         LocalDateTime now = LocalDateTime.now();
-        if (now.isBefore(promotion.getEffectiveDate())) {
-            throw new PromotionInvalidException("Promotion has not started yet");
+        if (promotion.getEffectiveDate() == null || now.isBefore(promotion.getEffectiveDate())) {
+            throw new PromotionInvalidException("Voucher không khả thi: Khuyến mãi chưa bắt đầu");
         }
-        if (now.isAfter(promotion.getExpirationDate())) {
-            throw new PromotionInvalidException("Promotion has expired");
+        // The expiration instant is exclusive: it cannot be applied at or after that time.
+        if (promotion.getExpirationDate() == null || !now.isBefore(promotion.getExpirationDate())) {
+            throw new PromotionInvalidException("Voucher không khả thi: Khuyến mãi đã hết hạn");
         }
     }
 
@@ -53,11 +54,14 @@ public class PromotionValidator {
      * Validate if order total meets minimum required value
      */
     public void validateMinimumOrderValue(Promotion promotion, Double orderTotal) {
+        if (orderTotal == null || !Double.isFinite(orderTotal) || orderTotal < 0) {
+            throw new PromotionInvalidException("Voucher không khả thi: Giá trị đơn hàng không hợp lệ");
+        }
         if (promotion.getMinValueToBeApplied() != null 
                 && orderTotal < promotion.getMinValueToBeApplied()) {
             throw new PromotionInvalidException(
-                String.format("Order total %.2f is below minimum required %.2f", 
-                    orderTotal, promotion.getMinValueToBeApplied())
+                String.format("Voucher không khả thi: Đơn hàng chưa đạt giá trị tối thiểu %,.0fđ (hiện tại: %,.0fđ)",
+                    promotion.getMinValueToBeApplied(), orderTotal)
             );
         }
     }

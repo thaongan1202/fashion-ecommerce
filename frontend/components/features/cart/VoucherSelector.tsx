@@ -89,9 +89,19 @@ export function VoucherSelector({
       if (resp.success && typeof resp.data === "number") {
         return resp.data;
       }
+      // API trả về success=false → voucher không khả thi
+      if (!resp.success && resp.message) {
+        toast.error(resp.message);
+      }
       return 0;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to calculate discount:", error);
+      // Hiển thị lỗi cụ thể từ backend (TC-M04-05: "Voucher không khả thi")
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Voucher không khả thi";
+      toast.error(errorMessage);
       return 0;
     }
   };
@@ -217,9 +227,8 @@ export function VoucherSelector({
           }`
         );
       }
-    } else {
-      toast.error("Không thể tính giảm giá cho voucher này");
     }
+    // Không hiển thị toast lỗi ở đây vì calculateDiscount đã hiển thị rồi (TC-M04-05)
   };
 
   const handleRemoveVoucher = async (voucherType: "discount" | "freeship") => {

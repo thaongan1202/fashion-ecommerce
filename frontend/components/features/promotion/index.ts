@@ -3,6 +3,7 @@
  */
 export { PromotionsTable } from "./PromotionsTable";
 export { AvailablePromotionsList } from "./AvailablePromotionsList";
+export { PromotionList } from "./PromotionList";
 export { PromotionFormModal } from "./PromotionFormModal";
 export { PromotionDetailModal } from "./PromotionDetailModal";
 export { TemplatesTable } from "./TemplatesTable";
