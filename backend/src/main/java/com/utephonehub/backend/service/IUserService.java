@@ -63,6 +63,9 @@ public interface IUserService {
      * @throws ResourceNotFoundException if user not found
      */
     UserResponse unlockUser(Long userId);
+
+    /** Soft-delete and anonymize a customer account while retaining order history. */
+    void deleteUser(Long userId);
     
     /**
      * Create new user account (CUSTOMER or ADMIN)

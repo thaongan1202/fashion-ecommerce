@@ -14,6 +14,7 @@ public class UserSpecification {
     public static Specification<User> filterUsers(UserRole role, UserStatus status, String search) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
+            predicates.add(criteriaBuilder.isNull(root.get("deletedAt")));
 
             // Filter by role (if not ALL)
             if (role != null) {

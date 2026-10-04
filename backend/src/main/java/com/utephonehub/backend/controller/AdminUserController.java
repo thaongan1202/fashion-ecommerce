@@ -119,6 +119,20 @@ public class AdminUserController {
         ));
     }
 
+    @DeleteMapping("/{userId}")
+    @Operation(
+            summary = "Xóa tài khoản khách hàng",
+            description = "Ẩn và ẩn danh tài khoản khách hàng, giữ lại lịch sử đơn hàng và đánh giá."
+    )
+    public ResponseEntity<ApiResponse<Void>> deleteUser(
+            @Parameter(description = "ID của khách hàng cần xóa", example = "1", required = true)
+            @PathVariable Long userId
+    ) {
+        log.info("Admin delete customer account - userId: {}", userId);
+        userService.deleteUser(userId);
+        return ResponseEntity.ok(ApiResponse.success("Tài khoản đã được xóa", null));
+    }
+
     @PostMapping
     @Operation(
             summary = "Tạo tài khoản mới",

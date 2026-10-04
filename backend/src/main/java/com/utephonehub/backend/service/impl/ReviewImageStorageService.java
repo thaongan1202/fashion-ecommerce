@@ -70,6 +70,23 @@ public class ReviewImageStorageService {
         }
     }
 
+    public void deleteImages(List<String> imageUrls) {
+        if (imageUrls == null || imageUrls.isEmpty()) return;
+
+        Path root = Path.of(uploadDirectory).toAbsolutePath().normalize();
+        String prefix = "/uploads/reviews/";
+        for (String imageUrl : imageUrls) {
+            if (imageUrl == null || !imageUrl.startsWith(prefix) || imageUrl.contains("\\")) continue;
+            Path imagePath = root.resolve(imageUrl.substring(prefix.length())).normalize();
+            if (!imagePath.startsWith(root)) continue;
+            try {
+                Files.deleteIfExists(imagePath);
+            } catch (IOException exception) {
+                log.warn("Unable to remove review image {}", imageUrl, exception);
+            }
+        }
+    }
+
     private String imageExtension(byte[] bytes) {
         if (bytes.length >= 3
                 && (bytes[0] & 0xff) == 0xff

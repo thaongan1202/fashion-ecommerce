@@ -155,6 +155,7 @@ public class SecurityConfig {
                                                 // Other admin endpoints
                                                 .requestMatchers(
                                                                 "/api/v1/admin/users/**",
+                                                                "/api/v1/admin/reviews/**",
                                                                 "/api/v1/admin/categories/**",
                                                                 "/api/v1/admin/brands/**",
                                                                 "/api/v1/admin/products/**",

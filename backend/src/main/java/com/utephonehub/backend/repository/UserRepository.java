@@ -14,6 +14,7 @@ import java.util.Optional;
 @Repository
 public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificationExecutor<User> {
     Optional<User> findByEmail(String email);
+    Optional<User> findByIdAndDeletedAtIsNull(Long id);
     @Query(value = """
             SELECT * FROM users u
             WHERE CASE

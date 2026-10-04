@@ -192,6 +192,10 @@ public class AuthServiceImpl implements IAuthService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
 
+        if (user.getDeletedAt() != null || user.getStatus() != UserStatus.ACTIVE) {
+            throw new UnauthorizedException("Tài khoản không còn hoạt động");
+        }
+
         // Verify refresh token in Redis
         String refreshTokenKey = "refresh_token:" + userId;
         String storedToken = redisTemplate.opsForValue().get(refreshTokenKey);

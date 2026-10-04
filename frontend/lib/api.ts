@@ -1401,6 +1401,13 @@ export const adminUserAPI = {
     });
   },
 
+  /** DELETE /api/v1/admin/users/{userId} */
+  deleteUser: async (userId: number): Promise<ApiResponse<null>> => {
+    return fetchAPI<null>(`/admin/users/${userId}`, {
+      method: "DELETE",
+    });
+  },
+
   /**
    * POST /api/v1/admin/users
    * Tạo tài khoản mới
@@ -1483,6 +1490,33 @@ export const adminOrderAPI = {
    */
   getAvailableTransitions: async (orderId: number): Promise<ApiResponse<string[]>> => {
     return fetchAPI<string[]>(`/admin/orders/${orderId}/available-transitions`);
+  },
+};
+
+// ============================================
+// ADMIN - PRODUCT REVIEWS API
+// ============================================
+export const adminReviewAPI = {
+  getReviews: async (params: {
+    page?: number;
+    size?: number;
+    productId?: number;
+    rating?: number;
+  }): Promise<ApiResponse<import("@/types").AdminReviewPage>> => {
+    const query = new URLSearchParams();
+    if (params.page !== undefined) query.set("page", String(params.page));
+    if (params.size !== undefined) query.set("size", String(params.size));
+    if (params.productId !== undefined) query.set("productId", String(params.productId));
+    if (params.rating !== undefined) query.set("rating", String(params.rating));
+    return fetchAPI<import("@/types").AdminReviewPage>(`/admin/reviews?${query.toString()}`);
+  },
+
+  getReviewedProducts: async (): Promise<ApiResponse<import("@/types").ReviewedProductOption[]>> => {
+    return fetchAPI<import("@/types").ReviewedProductOption[]>("/admin/reviews/products");
+  },
+
+  deleteReview: async (reviewId: number): Promise<ApiResponse<null>> => {
+    return fetchAPI<null>(`/admin/reviews/${reviewId}`, { method: "DELETE" });
   },
 };
 

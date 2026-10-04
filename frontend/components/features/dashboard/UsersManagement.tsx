@@ -196,6 +196,33 @@ export function UsersManagement() {
     });
   };
 
+  const handleDeleteUser = (user: User) => {
+    setConfirmDialog({
+      open: true,
+      title: 'Xóa tài khoản khách hàng',
+      description: `Bạn có chắc chắn muốn xóa tài khoản "${user.fullName}" (${user.email})? Thông tin cá nhân sẽ bị ẩn danh; lịch sử đơn hàng và đánh giá được giữ lại.`,
+      onConfirm: async () => {
+        try {
+          const response = await adminUserAPI.deleteUser(user.id);
+          if (response.success) {
+            toast.success('Đã xóa tài khoản khách hàng');
+            if (users.length === 1 && pagination.currentPage > 0) {
+              setPagination((current) => ({ ...current, currentPage: current.currentPage - 1 }));
+            } else {
+              void fetchUsers();
+            }
+          }
+        } catch (error: any) {
+          toast.error('Không thể xóa tài khoản', {
+            description: error.message || 'Vui lòng thử lại',
+          });
+        } finally {
+          setConfirmDialog({ ...confirmDialog, open: false });
+        }
+      },
+    });
+  };
+
   // Handle pagination
   const handlePageChange = (newPage: number) => {
     setPagination((prev) => ({ ...prev, currentPage: newPage }));
@@ -238,6 +265,7 @@ export function UsersManagement() {
             isLoading={isLoading}
             onLockUser={handleLockUser}
             onUnlockUser={handleUnlockUser}
+            onDeleteUser={handleDeleteUser}
           />
 
           {/* Pagination */}
