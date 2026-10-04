@@ -355,7 +355,7 @@ public ResponseEntity<ApiResponse<?>> getRelatedProducts(
  * 
  * Use case: Homepage "Best Sellers", Product Recommendations
  */
-@GetMapping("/best-selling")
+@GetMapping({"/best-selling", "/top-selling"})
 @Operation(
         summary = "Xem sản phẩm bán chạy",
         description = "Lấy danh sách sản phẩm bán chạy nhất theo lượt bán. Sử dụng limit để lấy N sản phẩm đầu tiên, hoặc dùng page/size để phân trang"
