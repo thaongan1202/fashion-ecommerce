@@ -1,7 +1,9 @@
 package com.utephonehub.backend.service.impl;
 
 import com.utephonehub.backend.dto.request.review.CreateReviewRequest;
+import com.utephonehub.backend.dto.response.review.AdminReviewResponse;
 import com.utephonehub.backend.dto.response.review.ProductReviewsResponse;
+import com.utephonehub.backend.dto.response.review.ReviewedProductOption;
 import com.utephonehub.backend.dto.response.review.ReviewOrderOption;
 import com.utephonehub.backend.dto.response.review.ReviewResponse;
 import com.utephonehub.backend.entity.Order;
@@ -17,10 +19,14 @@ import com.utephonehub.backend.exception.UnauthorizedException;
 import com.utephonehub.backend.repository.OrderRepository;
 import com.utephonehub.backend.repository.ProductRepository;
 import com.utephonehub.backend.repository.ReviewRepository;
+import com.utephonehub.backend.repository.ReviewedProductProjection;
 import com.utephonehub.backend.repository.UserRepository;
 import com.utephonehub.backend.service.IReviewService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +44,42 @@ public class ReviewServiceImpl implements IReviewService {
     private final UserRepository userRepository;
     private final OrderRepository orderRepository;
     private final ReviewImageStorageService reviewImageStorageService;
+
+    @Override
+    @Transactional
+    public void deleteAdminReview(Long reviewId) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đánh giá"));
+        List<String> imageUrls = review.getImageUrls() == null ? List.of() : List.copyOf(review.getImageUrls());
+        reviewRepository.delete(review);
+        reviewRepository.flush();
+        reviewImageStorageService.deleteImages(imageUrls);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<AdminReviewResponse> getAdminReviews(int page, int size, Long productId, Integer rating) {
+        if (rating != null && (rating < 1 || rating > 5)) {
+            throw new BadRequestException("Số sao phải nằm trong khoảng từ 1 đến 5");
+        }
+
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.max(1, Math.min(size, 100));
+        return reviewRepository.findAdminReviews(
+                        productId,
+                        rating,
+                        PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "createdAt")
+                                .and(Sort.by(Sort.Direction.DESC, "id"))))
+                .map(this::toAdminReviewResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ReviewedProductOption> getReviewedProducts() {
+        return reviewRepository.findReviewedProducts().stream()
+                .map(this::toReviewedProductOption)
+                .toList();
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -175,6 +217,35 @@ public class ReviewServiceImpl implements IReviewService {
                 .productColor(review.getProductColor())
                 .productSize(review.getProductSize())
                 .imageUrls(review.getImageUrls() == null ? List.of() : List.copyOf(review.getImageUrls()))
+                .build();
+    }
+
+    private AdminReviewResponse toAdminReviewResponse(Review review) {
+        Product product = review.getProduct();
+        return AdminReviewResponse.builder()
+                .id(review.getId())
+                .productId(product.getId())
+                .productName(product.getName())
+                .productThumbnailUrl(product.getThumbnailUrl())
+                .authorName(review.getUser().getFullName())
+                .rating(review.getRating())
+                .comment(review.getComment())
+                .createdAt(review.getCreatedAt())
+                .verifiedPurchase(review.getOrder() != null)
+                .materialRating(review.getMaterialRating())
+                .fitRating(review.getFitRating())
+                .colorRating(review.getColorRating())
+                .productColor(review.getProductColor())
+                .productSize(review.getProductSize())
+                .imageUrls(review.getImageUrls() == null ? List.of() : List.copyOf(review.getImageUrls()))
+                .build();
+    }
+
+    private ReviewedProductOption toReviewedProductOption(ReviewedProductProjection product) {
+        return ReviewedProductOption.builder()
+                .id(product.getId())
+                .name(product.getName())
+                .reviewCount(product.getReviewCount())
                 .build();
     }
 

@@ -45,7 +45,7 @@ export function ProductsManagement() {
         </button>
 
         <Button
-          onClick={() => router.push('/manage/products/new')}
+          onClick={() => router.push('/admin/products/new')}
           className="flex items-center gap-2 h-9"
           variant="default"
         >

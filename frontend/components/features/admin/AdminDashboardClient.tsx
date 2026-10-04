@@ -17,6 +17,7 @@ import {
     Tag,
     Ticket,
     FileText,
+    Star,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,7 @@ import {
     CategoryManagement,
     BrandManagement,
     AdminOrderDetailModal,
+    ReviewManagement,
 } from "@/components/features/dashboard";
 import {
     PromotionsTable,
@@ -44,7 +46,8 @@ type TabType =
     | "brands"
     | "promotions"
     | "templates"
-    | "users";
+    | "users"
+    | "reviews";
 
 export default function AdminDashboardClient() {
     const router = useRouter();
@@ -68,6 +71,7 @@ export default function AdminDashboardClient() {
         { id: "promotions" as TabType, label: "Khuyến mãi", icon: Ticket },
         { id: "templates" as TabType, label: "Templates", icon: FileText },
         { id: "users" as TabType, label: "Người dùng", icon: Users },
+        { id: "reviews" as TabType, label: "Đánh giá sản phẩm", icon: Star },
     ];
 
     useEffect(() => {
@@ -158,6 +162,7 @@ export default function AdminDashboardClient() {
                             {activeTab === "promotions" && "Quản lý khuyến mãi"}
                             {activeTab === "templates" && "Quản lý Templates"}
                             {activeTab === "users" && "Quản lý người dùng"}
+                            {activeTab === "reviews" && "Đánh giá sản phẩm"}
                         </h2>
                     </div>
                     <div className="flex items-center gap-3">
@@ -218,6 +223,9 @@ export default function AdminDashboardClient() {
 
                     {/* Users Management */}
                     {activeTab === "users" && <UsersManagement />}
+
+                    {/* Product Reviews */}
+                    {activeTab === "reviews" && <ReviewManagement />}
                 </div>
             </div>
         </div>

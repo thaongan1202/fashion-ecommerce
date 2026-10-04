@@ -73,6 +73,9 @@ export type {
   AdminOrderItemDto,
 } from "./order";
 
+// Review types
+export type { AdminReview, AdminReviewPage, ReviewedProductOption } from "./review";
+
 // Dashboard types
 export type {
   DashboardOverview,

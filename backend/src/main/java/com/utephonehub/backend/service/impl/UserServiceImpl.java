@@ -23,10 +23,13 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,11 +40,12 @@ public class UserServiceImpl implements IUserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
+    private final RedisTemplate<String, String> redisTemplate;
 
     @Override
     public UserResponse getUserById(Long userId) {
         log.info("Getting user with id: {}", userId);
-        User user = userRepository.findById(userId)
+        User user = userRepository.findByIdAndDeletedAtIsNull(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
         return userMapper.toResponse(user);
     }
@@ -51,7 +55,7 @@ public class UserServiceImpl implements IUserService {
     public UserResponse updateProfile(Long userId, UpdateProfileRequest request) {
         log.info("Updating profile for user id: {}", userId);
 
-        User user = userRepository.findById(userId)
+        User user = userRepository.findByIdAndDeletedAtIsNull(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
 
         user.setFullName(request.getFullName());
@@ -85,7 +89,7 @@ public class UserServiceImpl implements IUserService {
             throw new BadRequestException("Mật khẩu phải ít nhất 8 ký tự, chứa chữ hoa, chữ thường và số");
         }
 
-        User user = userRepository.findById(userId)
+        User user = userRepository.findByIdAndDeletedAtIsNull(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
 
         // Verify current password
@@ -138,7 +142,7 @@ public class UserServiceImpl implements IUserService {
         log.info("Attempting to lock user with id: {}", userId);
 
         // Find user
-        User user = userRepository.findById(userId)
+        User user = userRepository.findByIdAndDeletedAtIsNull(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
 
         // Business Rule: Cannot lock ADMIN accounts
@@ -167,7 +171,7 @@ public class UserServiceImpl implements IUserService {
         log.info("Attempting to unlock user with id: {}", userId);
 
         // Find user
-        User user = userRepository.findById(userId)
+        User user = userRepository.findByIdAndDeletedAtIsNull(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
 
         // Check if already active
@@ -183,6 +187,34 @@ public class UserServiceImpl implements IUserService {
 
         log.info("User account unlocked successfully - userId: {}", userId);
         return userMapper.toResponse(user);
+    }
+
+    @Override
+    @Transactional
+    public void deleteUser(Long userId) {
+        User user = userRepository.findByIdAndDeletedAtIsNull(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
+
+        if (user.getRole() == UserRole.ADMIN) {
+            throw new BadRequestException("Không thể xóa tài khoản quản trị viên");
+        }
+
+        user.setDeletedAt(LocalDateTime.now());
+        user.setStatus(UserStatus.LOCKED);
+        user.setUsername("deleted_" + user.getId());
+        user.setEmail("deleted_" + user.getId() + "_" + System.currentTimeMillis() + "@deleted.invalid");
+        user.setFullName("Tài khoản đã xóa");
+        user.setPhoneNumber(null);
+        user.setGender(null);
+        user.setDateOfBirth(null);
+        user.setPasswordHash(passwordEncoder.encode(UUID.randomUUID().toString()));
+        if (user.getAddresses() != null) {
+            user.getAddresses().clear();
+        }
+        user.setCart(null);
+        userRepository.save(user);
+        redisTemplate.delete("refresh_token:" + userId);
+        log.info("Customer account soft-deleted and anonymized - userId: {}", userId);
     }
 
     @Override

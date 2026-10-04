@@ -4,6 +4,8 @@ import com.utephonehub.backend.entity.Review;
 import com.utephonehub.backend.entity.Order;
 import com.utephonehub.backend.enums.OrderStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -17,6 +19,21 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     List<Review> findTop30ByProductIdOrderByCreatedAtDesc(Long productId);
     List<Review> findByUserId(Long userId);
     boolean existsByUserIdAndProductIdAndOrderId(Long userId, Long productId, Long orderId);
+
+    @Query(value = "SELECT r FROM Review r JOIN FETCH r.product p JOIN FETCH r.user u " +
+            "WHERE (:productId IS NULL OR p.id = :productId) " +
+            "AND (:rating IS NULL OR r.rating = :rating)",
+            countQuery = "SELECT COUNT(r) FROM Review r " +
+                    "WHERE (:productId IS NULL OR r.product.id = :productId) " +
+                    "AND (:rating IS NULL OR r.rating = :rating)")
+    Page<Review> findAdminReviews(
+            @Param("productId") Long productId,
+            @Param("rating") Integer rating,
+            Pageable pageable);
+
+    @Query("SELECT r.product.id AS id, r.product.name AS name, COUNT(r) AS reviewCount " +
+            "FROM Review r GROUP BY r.product.id, r.product.name ORDER BY r.product.name ASC")
+    List<ReviewedProductProjection> findReviewedProducts();
 
     @Query("SELECT DISTINCT o FROM Order o JOIN o.items item " +
            "WHERE o.user.id = :userId " +

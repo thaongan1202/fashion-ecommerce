@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Lock, LockOpen, Eye } from 'lucide-react';
+import { Lock, LockOpen, Eye, Trash2 } from 'lucide-react';
 import type { User } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -10,10 +10,11 @@ interface UserTableProps {
   isLoading: boolean;
   onLockUser: (user: User) => void;
   onUnlockUser: (user: User) => void;
+  onDeleteUser: (user: User) => void;
   onViewUser?: (user: User) => void;
 }
 
-export function UserTable({ users, isLoading, onLockUser, onUnlockUser, onViewUser }: UserTableProps) {
+export function UserTable({ users, isLoading, onLockUser, onUnlockUser, onDeleteUser, onViewUser }: UserTableProps) {
   if (isLoading) {
     return (
       <div className="rounded-lg border">
@@ -115,6 +116,16 @@ export function UserTable({ users, isLoading, onLockUser, onUnlockUser, onViewUs
                             <LockOpen className="h-4 w-4" />
                           </Button>
                         )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onDeleteUser(user)}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+                          title="Xóa tài khoản"
+                          aria-label={`Xóa tài khoản ${user.fullName}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </>
                     )}
                   </div>
