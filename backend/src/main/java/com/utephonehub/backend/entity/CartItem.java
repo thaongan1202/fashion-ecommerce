@@ -31,6 +31,14 @@ public class CartItem {
     @Column(nullable = false)
     private Integer quantity = 1;
 
+    /** Biến thể màu sắc (nullable - sản phẩm không có màu thì để null) */
+    @Column(length = 50)
+    private String color;
+
+    /** Biến thể kích cỡ (nullable - sản phẩm không có size thì để null) */
+    @Column(length = 50)
+    private String size;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

@@ -58,6 +58,8 @@ export function useCartSync() {
             return {
               productId: Number(it.productId ?? 0),
               quantity: qty,
+              color: it.color || undefined,
+              size: it.size || undefined,
             };
           })
           .filter((it) => it.productId > 0);
@@ -88,6 +90,8 @@ export function useCartSync() {
                 cartAPI.addToCart({
                   productId: it.productId,
                   quantity: it.quantity,
+                  color: it.color,
+                  size: it.size,
                 })
               )
             );
@@ -337,6 +341,8 @@ export function useCartSync() {
           .map((it: any) => ({
             productId: Number(it.productId ?? 0),
             quantity: Math.max(1, Math.min(10, Number(it.quantity ?? 1))),
+            color: it.color || undefined,
+            size: it.size || undefined,
           }))
           .filter((it) => it.productId > 0);
 

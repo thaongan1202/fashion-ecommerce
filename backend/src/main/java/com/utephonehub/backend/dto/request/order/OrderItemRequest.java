@@ -19,4 +19,10 @@ public class OrderItemRequest {
     @NotNull(message = "Số lượng không được để trống")
     @Min(value = 1, message = "Số lượng phải lớn hơn 0")
     private Integer quantity;
+
+    /** Màu sắc đã chọn trong giỏ hàng (tùy chọn) */
+    private String color;
+
+    /** Kích cỡ đã chọn trong giỏ hàng (tùy chọn) */
+    private String size;
 }
