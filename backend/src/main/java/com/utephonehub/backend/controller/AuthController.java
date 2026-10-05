@@ -3,6 +3,7 @@ package com.utephonehub.backend.controller;
 import com.utephonehub.backend.dto.ApiResponse;
 import com.utephonehub.backend.dto.request.auth.*;
 import com.utephonehub.backend.dto.response.auth.AuthResponse;
+import com.utephonehub.backend.dto.response.auth.RegistrationOtpResponse;
 import com.utephonehub.backend.dto.response.user.UserResponse;
 import com.utephonehub.backend.service.IAuthService;
 import com.utephonehub.backend.util.SecurityUtils;
@@ -38,11 +39,19 @@ public class AuthController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "Đăng ký thành công"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Dữ liệu không hợp lệ")
     })
-    public ResponseEntity<ApiResponse<UserResponse>> register(@Valid @RequestBody RegisterRequest request) {
+    public ResponseEntity<ApiResponse<RegistrationOtpResponse>> register(@Valid @RequestBody RegisterRequest request) {
         log.info("Register request for email: {}", request.getEmail());
-        UserResponse user = authService.register(request);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.created("Đăng ký thành công", user));
+        RegistrationOtpResponse otp = authService.register(request);
+        return ResponseEntity.ok(ApiResponse.success(
+                "Mã OTP đã được gửi tới email đăng ký. Mã có hiệu lực 60 giây.", otp));
+    }
+
+    @PostMapping("/register/resend-otp")
+    @Operation(summary = "Cấp lại OTP đăng ký", description = "Chỉ cấp lại sau khi OTP hiện tại hết hạn 60 giây")
+    public ResponseEntity<ApiResponse<RegistrationOtpResponse>> resendRegistrationOtp(
+            @Valid @RequestBody ForgotPasswordRequest request) {
+        RegistrationOtpResponse otp = authService.resendRegistrationOtp(request);
+        return ResponseEntity.ok(ApiResponse.success("Đã gửi OTP mới. Mã có hiệu lực 60 giây.", otp));
     }
 
     @PostMapping("/register/admin")
@@ -127,11 +136,12 @@ public class AuthController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Xác thực email thành công"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "OTP không hợp lệ hoặc đã hết hạn")
     })
-    public ResponseEntity<ApiResponse<?>> verifyRegistrationOtp(
+    public ResponseEntity<ApiResponse<UserResponse>> verifyRegistrationOtp(
             @Valid @RequestBody VerifyRegistrationOtpRequest request) {
         log.info("Verify registration OTP for email: {}", request.getEmail());
-        authService.verifyRegistrationOtp(request);
-        return ResponseEntity.ok(ApiResponse.success("Email đã được xác thực thành công", null));
+        UserResponse user = authService.verifyRegistrationOtp(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created("Xác thực email thành công. Tài khoản đã được tạo.", user));
     }
 
     @GetMapping("/login/google")

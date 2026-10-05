@@ -2,6 +2,7 @@ package com.utephonehub.backend.service.impl;
 
 import com.utephonehub.backend.dto.request.auth.*;
 import com.utephonehub.backend.dto.response.auth.AuthResponse;
+import com.utephonehub.backend.dto.response.auth.RegistrationOtpResponse;
 import com.utephonehub.backend.dto.response.user.UserResponse;
 import com.utephonehub.backend.entity.User;
 import com.utephonehub.backend.entity.Cart;
@@ -22,6 +23,7 @@ import com.utephonehub.backend.util.OtpGenerator;
 import com.utephonehub.backend.util.EmailAddressNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,68 +43,68 @@ public class AuthServiceImpl implements IAuthService {
     private final RedisTemplate<String, String> redisTemplate;
     private final IEmailService emailService;
     private final UserMapper userMapper;
+    private final ObjectMapper objectMapper;
 
     private static final String OTP_PREFIX = "otp:";
     private static final String REGISTER_OTP_PREFIX = "verify_email:";
+    private static final String REGISTER_ATTEMPTS_PREFIX = "verify_email_attempts:";
+    private static final String REGISTER_LOCK_PREFIX = "verify_email_lock:";
+    private static final String REGISTER_PENDING_PREFIX = "verify_email_pending:";
     private static final long OTP_EXPIRATION_MINUTES = 5;
+    private static final long REGISTER_OTP_SECONDS = 60;
+    private static final int REGISTER_MAX_ATTEMPTS = 5;
+    private static final long REGISTER_PENDING_MINUTES = 15;
 
     @Override
-    @Transactional
-    public UserResponse register(RegisterRequest request) {
-        log.info("Registering new user with email: {}", request.getEmail());
+    public RegistrationOtpResponse register(RegisterRequest request) {
+        log.info("Starting registration OTP for email: {}", request.getEmail());
+        String email = validateRegistration(request);
+
+        Long lockTtl = redisTemplate.getExpire(REGISTER_LOCK_PREFIX + email, TimeUnit.SECONDS);
+        if (lockTtl != null && lockTtl > 0) {
+            throw new BadRequestException("Bạn đã nhập sai 5 lần. Vui lòng đợi hết thời hạn "
+                    + lockTtl + " giây trước khi yêu cầu OTP mới.");
+        }
+
+        Long otpTtl = redisTemplate.getExpire(REGISTER_OTP_PREFIX + email, TimeUnit.SECONDS);
+        if (otpTtl != null && otpTtl > 0 && Boolean.TRUE.equals(redisTemplate.hasKey(REGISTER_OTP_PREFIX + email))) {
+            return otpResponse(email, otpTtl.intValue(), remainingAttempts(email));
+        }
+
+        storePendingRegistration(email, request);
+        issueRegistrationOtp(email, request.getFullName());
+        return otpResponse(email, (int) REGISTER_OTP_SECONDS, REGISTER_MAX_ATTEMPTS);
+    }
+
+    @Override
+    public RegistrationOtpResponse resendRegistrationOtp(ForgotPasswordRequest request) {
         String email = EmailAddressNormalizer.normalize(request.getEmail());
-
-        // Validate password match
-        if (request.getPassword() != null && request.getConfirmPassword() != null
-                && !request.getPassword().equals(request.getConfirmPassword())) {
-            throw new BadRequestException("Mật khẩu và xác nhận mật khẩu không khớp");
+        Long lockTtl = redisTemplate.getExpire(REGISTER_LOCK_PREFIX + email, TimeUnit.SECONDS);
+        if (lockTtl != null && lockTtl > 0) {
+            throw new BadRequestException("Bạn đã nhập sai 5 lần. Vui lòng đợi hết thời hạn "
+                    + lockTtl + " giây trước khi yêu cầu OTP mới.");
+        }
+        Long otpTtl = redisTemplate.getExpire(REGISTER_OTP_PREFIX + email, TimeUnit.SECONDS);
+        if (otpTtl != null && otpTtl > 0 && Boolean.TRUE.equals(redisTemplate.hasKey(REGISTER_OTP_PREFIX + email))) {
+            throw new BadRequestException("OTP hiện tại vẫn còn hiệu lực. Vui lòng đợi hết thời hạn "
+                    + otpTtl + " giây trước khi yêu cầu mã mới.");
         }
 
-        // Check if email already exists
-        if (email != null && userRepository.findByCanonicalEmail(email).isPresent()) {
-            throw new ConflictException("Email này đã được sử dụng");
+        String pending = redisTemplate.opsForValue().get(REGISTER_PENDING_PREFIX + email);
+        if (pending == null) {
+            throw new BadRequestException("Phiên đăng ký đã hết hạn. Vui lòng đăng ký lại.");
         }
-
-        // Check if username already exists
-        if (request.getUsername() != null && userRepository.existsByUsername(request.getUsername())) {
-            throw new ConflictException("Tên đăng nhập này đã được sử dụng");
-        }
-
-        // Create new user
-        User user = User.builder()
-                .username(request.getUsername())
-                .fullName(request.getFullName())
-                .email(email)
-                .phoneNumber(request.getPhoneNumber())
-                .gender(request.getGender())
-                .dateOfBirth(request.getDateOfBirth())
-                .passwordHash(passwordEncoder.encode(request.getPassword()))
-                .role(UserRole.CUSTOMER)
-                .status(UserStatus.ACTIVE)
-                .build();
-
-        user = userRepository.save(user);
-
-        // Create cart for user
-        Cart cart = Cart.builder()
-                .user(user)
-                .build();
-        cartRepository.save(cart);
-
-        log.info("User registered successfully with id: {}", user.getId());
-
-        // Send welcome registration email (async, không block registration flow)
         try {
-            log.info("Attempting to send registration welcome email to: {}", user.getEmail());
-            emailService.sendRegistrationEmail(user.getEmail(), user.getFullName());
-            log.info("Registration welcome email sent successfully to: {}", user.getEmail());
-        } catch (Exception e) {
-            log.error("Failed to send registration welcome email to {}: {}",
-                    user.getEmail(), e.getMessage(), e);
-            // Không throw exception để không ảnh hưởng registration
+            RegisterRequest stored = objectMapper.readValue(pending, RegisterRequest.class);
+            redisTemplate.expire(REGISTER_PENDING_PREFIX + email, REGISTER_PENDING_MINUTES, TimeUnit.MINUTES);
+            issueRegistrationOtp(email, stored.getFullName());
+            return otpResponse(email, (int) REGISTER_OTP_SECONDS, REGISTER_MAX_ATTEMPTS);
+        } catch (BadRequestException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.error("Cannot resend registration OTP for {}", email, ex);
+            throw new BadRequestException("Không thể cấp lại OTP. Vui lòng đăng ký lại.");
         }
-
-        return userMapper.toResponse(user);
     }
 
     @Override
@@ -316,27 +318,166 @@ public class AuthServiceImpl implements IAuthService {
         }
     }
 
-    @Transactional(readOnly = true)
     @Override
-    public void verifyRegistrationOtp(VerifyRegistrationOtpRequest request) {
+    @Transactional
+    public UserResponse verifyRegistrationOtp(VerifyRegistrationOtpRequest request) {
         log.info("Verifying registration OTP for email: {}", request.getEmail());
         String email = EmailAddressNormalizer.normalize(request.getEmail());
+        String lockKey = REGISTER_LOCK_PREFIX + email;
+        Long lockTtl = redisTemplate.getExpire(lockKey, TimeUnit.SECONDS);
+        if (lockTtl != null && lockTtl > 0) {
+            throw new UnauthorizedException("Bạn đã nhập sai tối đa 5 lần. Vui lòng đợi hết thời hạn "
+                    + lockTtl + " giây để yêu cầu OTP mới.");
+        }
 
         String otpKey = REGISTER_OTP_PREFIX + email;
         String storedOtp = redisTemplate.opsForValue().get(otpKey);
-
-        if (storedOtp == null || !storedOtp.equals(request.getOtp())) {
-            throw new UnauthorizedException("Mã OTP không hợp lệ hoặc đã hết hạn");
+        if (storedOtp == null) {
+            throw new UnauthorizedException("Mã OTP đã hết hạn. Vui lòng yêu cầu cấp lại OTP mới.");
+        }
+        if (!storedOtp.equals(request.getOtp())) {
+            registerFailedAttempt(email);
         }
 
-        // Verify user exists
-        if (userRepository.findByCanonicalEmail(email).isEmpty()) {
-            throw new ResourceNotFoundException("Người dùng không tồn tại");
+        String pending = redisTemplate.opsForValue().get(REGISTER_PENDING_PREFIX + email);
+        if (pending == null) {
+            throw new BadRequestException("Phiên đăng ký đã hết hạn. Vui lòng đăng ký lại.");
         }
 
-        // Delete OTP from Redis (one-time use)
+        RegisterRequest storedRequest;
+        try {
+            storedRequest = objectMapper.readValue(pending, RegisterRequest.class);
+        } catch (Exception ex) {
+            throw new BadRequestException("Không thể đọc thông tin đăng ký. Vui lòng đăng ký lại.");
+        }
+
+        validateRegistration(storedRequest);
+        User user = User.builder()
+                .username(storedRequest.getUsername())
+                .fullName(storedRequest.getFullName())
+                .email(email)
+                .phoneNumber(storedRequest.getPhoneNumber())
+                .gender(storedRequest.getGender())
+                .dateOfBirth(storedRequest.getDateOfBirth())
+                .passwordHash(passwordEncoder.encode(storedRequest.getPassword()))
+                .role(UserRole.CUSTOMER)
+                .status(UserStatus.ACTIVE)
+                .walletBalance(java.math.BigDecimal.ZERO)
+                .build();
+        user = userRepository.save(user);
+        cartRepository.save(Cart.builder().user(user).build());
+
         redisTemplate.delete(otpKey);
+        redisTemplate.delete(REGISTER_ATTEMPTS_PREFIX + email);
+        redisTemplate.delete(lockKey);
+        redisTemplate.delete(REGISTER_PENDING_PREFIX + email);
 
-        log.info("Registration OTP verified successfully for email: {}", request.getEmail());
+        try {
+            emailService.sendRegistrationEmail(user.getEmail(), user.getFullName());
+        } catch (Exception ex) {
+            log.error("Failed to send welcome email to {}: {}", user.getEmail(), ex.getMessage());
+        }
+
+        log.info("Registration OTP verified and user created: {}", user.getId());
+        return userMapper.toResponse(user);
+    }
+
+    private String validateRegistration(RegisterRequest request) {
+        if (request.getPassword() != null && request.getConfirmPassword() != null
+                && !request.getPassword().equals(request.getConfirmPassword())) {
+            throw new BadRequestException("Mật khẩu và xác nhận mật khẩu không khớp");
+        }
+        String email = EmailAddressNormalizer.normalize(request.getEmail());
+        if (email == null || email.isBlank()) {
+            throw new BadRequestException("Email không được để trống");
+        }
+        if (userRepository.findByCanonicalEmail(email).isPresent()) {
+            throw new ConflictException("Email này đã được sử dụng");
+        }
+        if (request.getUsername() != null && userRepository.existsByUsername(request.getUsername())) {
+            throw new ConflictException("Tên đăng nhập này đã được sử dụng");
+        }
+        request.setEmail(email);
+        return email;
+    }
+
+    private void storePendingRegistration(String email, RegisterRequest request) {
+        try {
+            redisTemplate.opsForValue().set(
+                    REGISTER_PENDING_PREFIX + email,
+                    objectMapper.writeValueAsString(request),
+                    REGISTER_PENDING_MINUTES,
+                    TimeUnit.MINUTES);
+        } catch (Exception ex) {
+            throw new BadRequestException("Không thể lưu thông tin đăng ký. Vui lòng thử lại.");
+        }
+    }
+
+    private void issueRegistrationOtp(String email, String fullName) {
+        String otp = otpGenerator.generateOtp();
+        redisTemplate.opsForValue().set(REGISTER_OTP_PREFIX + email, otp, REGISTER_OTP_SECONDS, TimeUnit.SECONDS);
+        redisTemplate.opsForValue().set(REGISTER_ATTEMPTS_PREFIX + email, "0", REGISTER_OTP_SECONDS, TimeUnit.SECONDS);
+        redisTemplate.delete(REGISTER_LOCK_PREFIX + email);
+        try {
+            emailService.sendRegistrationOtpEmail(email, fullName, otp);
+        } catch (Exception ex) {
+            redisTemplate.delete(REGISTER_OTP_PREFIX + email);
+            redisTemplate.delete(REGISTER_ATTEMPTS_PREFIX + email);
+            log.error("Failed to send registration OTP to {}: {}", email, ex.getMessage());
+            throw new BadRequestException("Không thể gửi email OTP. Vui lòng kiểm tra lại địa chỉ email.");
+        }
+    }
+
+    private void registerFailedAttempt(String email) {
+        String attemptsKey = REGISTER_ATTEMPTS_PREFIX + email;
+        String raw = redisTemplate.opsForValue().get(attemptsKey);
+        int attempts = 0;
+        if (raw != null) {
+            try {
+                attempts = Integer.parseInt(raw);
+            } catch (NumberFormatException ignored) {
+                attempts = 0;
+            }
+        }
+        attempts++;
+        if (attempts >= REGISTER_MAX_ATTEMPTS) {
+            Long remain = redisTemplate.getExpire(REGISTER_OTP_PREFIX + email, TimeUnit.SECONDS);
+            if (remain == null || remain < 1) {
+                remain = REGISTER_OTP_SECONDS;
+            }
+            redisTemplate.opsForValue().set(REGISTER_LOCK_PREFIX + email, "1", remain, TimeUnit.SECONDS);
+            redisTemplate.delete(REGISTER_OTP_PREFIX + email);
+            redisTemplate.delete(attemptsKey);
+            throw new UnauthorizedException("Bạn đã nhập sai 5 lần. Vui lòng đợi hết thời hạn "
+                    + remain + " giây trước khi yêu cầu OTP mới.");
+        }
+        Long remain = redisTemplate.getExpire(REGISTER_OTP_PREFIX + email, TimeUnit.SECONDS);
+        if (remain == null || remain < 1) {
+            remain = REGISTER_OTP_SECONDS;
+        }
+        redisTemplate.opsForValue().set(attemptsKey, String.valueOf(attempts), remain, TimeUnit.SECONDS);
+        throw new UnauthorizedException("Mã OTP không đúng. Bạn còn " + (REGISTER_MAX_ATTEMPTS - attempts) + " lần thử.");
+    }
+
+    private int remainingAttempts(String email) {
+        String raw = redisTemplate.opsForValue().get(REGISTER_ATTEMPTS_PREFIX + email);
+        int used = 0;
+        if (raw != null) {
+            try {
+                used = Integer.parseInt(raw);
+            } catch (NumberFormatException ignored) {
+                used = 0;
+            }
+        }
+        return Math.max(0, REGISTER_MAX_ATTEMPTS - used);
+    }
+
+    private RegistrationOtpResponse otpResponse(String email, int expiresInSeconds, int remainingAttempts) {
+        return RegistrationOtpResponse.builder()
+                .email(email)
+                .expiresInSeconds(expiresInSeconds)
+                .maxAttempts(REGISTER_MAX_ATTEMPTS)
+                .remainingAttempts(remainingAttempts)
+                .build();
     }
 }

@@ -43,7 +43,7 @@ export default function UserDashboardClient() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     const isAdmin = user?.role === "ADMIN";
-    const { orders, loading: ordersLoading } = useOrders(false); // false for customer
+    const { orders, loading: ordersLoading, refetch: refetchOrders } = useOrders(false);
 
     // Customer menu items
     const menuItems = [
@@ -167,7 +167,7 @@ export default function UserDashboardClient() {
                         ordersLoading ? (
                             <div className="bg-card rounded-xl border border-border p-6 animate-pulse h-64" />
                         ) : (
-                            <OrdersTable orders={orders} isAdmin={false} />
+                            <OrdersTable orders={orders} isAdmin={false} onRefresh={refetchOrders} />
                         )
                     )}
 

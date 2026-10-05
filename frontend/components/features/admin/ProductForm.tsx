@@ -126,8 +126,18 @@ export function ProductForm({ onSuccess }: ProductFormProps) {
       return;
     }
 
-    if (!formData.templates[0].sku || !formData.templates[0].price || formData.templates[0].stockQuantity === undefined) {
-      toast.error('Vui lòng điền đầy đủ SKU, Giá và Tồn kho cho biến thể sản phẩm');
+    if (!formData.templates[0].sku) {
+      toast.error('Vui lòng nhập SKU cho biến thể sản phẩm');
+      return;
+    }
+    const price = Number(formData.templates[0].price);
+    const stockQuantity = Number(formData.templates[0].stockQuantity);
+    if (!Number.isFinite(price) || price <= 0) {
+      toast.error('Đơn giá không được bằng 0 hoặc số âm');
+      return;
+    }
+    if (!Number.isFinite(stockQuantity) || stockQuantity < 1 || !Number.isInteger(stockQuantity)) {
+      toast.error('Số lượng phải lớn hơn hoặc bằng 1 và không được âm');
       return;
     }
 
@@ -494,6 +504,8 @@ export function ProductForm({ onSuccess }: ProductFormProps) {
             <Label>Giá *</Label>
             <Input
               type="number"
+              min={1}
+              step={1}
               value={formData.templates[0].price}
               onChange={(e) => updateTemplate(0, 'price', Number(e.target.value))}
               placeholder="27990000"
@@ -504,6 +516,8 @@ export function ProductForm({ onSuccess }: ProductFormProps) {
             <Label>Tồn kho *</Label>
             <Input
               type="number"
+              min={1}
+              step={1}
               value={formData.templates[0].stockQuantity}
               onChange={(e) => updateTemplate(0, 'stockQuantity', Number(e.target.value))}
               placeholder="50"

@@ -15,15 +15,15 @@ export const ORDER_STATUS: Record<OrderStatus, StatusConfig> = {
     class: 'bg-secondary text-foreground/80 dark:bg-secondary text-foreground/80',
   },
   processing: {
-    label: 'Đang xử lý',
+    label: 'Đã xác nhận',
     class: 'bg-primary/15 text-primary dark:bg-primary/20',
   },
   shipped: {
-    label: 'Đang giao',
+    label: 'Đã giao',
     class: 'bg-accent text-foreground dark:bg-accent/60',
   },
   delivered: {
-    label: 'Đã giao',
+    label: 'Giao thành công',
     class: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
   },
   cancelled: {

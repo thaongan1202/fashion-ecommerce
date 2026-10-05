@@ -44,7 +44,7 @@ public class ProductTemplateRequest {
      * Stock quantity for this variant
      */
     @NotNull(message = "Số lượng tồn kho không được để trống")
-    @Min(value = 0, message = "Số lượng tồn kho phải >= 0")
+    @Min(value = 1, message = "Số lượng phải lớn hơn hoặc bằng 1 và không được âm")
     private Integer stockQuantity;
 
     /**

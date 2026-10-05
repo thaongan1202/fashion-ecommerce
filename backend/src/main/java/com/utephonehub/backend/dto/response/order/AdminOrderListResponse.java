@@ -101,8 +101,8 @@ public class AdminOrderListResponse {
         return switch (status) {
             case PENDING -> "Chờ xác nhận";
             case CONFIRMED -> "Đã xác nhận";
-            case SHIPPING -> "Đang giao hàng";
-            case DELIVERED -> "Đã giao hàng";
+            case SHIPPING -> "Đã giao";
+            case DELIVERED -> "Giao thành công";
             case CANCELLED -> "Đã hủy";
         };
     }

@@ -65,6 +65,10 @@ export function CartItem({ item, onUpdateQuantity, onRemove, selected, onSelectC
 
   const handleQuantityChange = async (newQuantity: number) => {
     if (newQuantity < 1 || isUpdating) return;
+    if (item.stockQuantity != null && newQuantity > item.stockQuantity) {
+      toast.error(`Không được vượt quá hàng còn. Kho chỉ còn ${item.stockQuantity}`);
+      return;
+    }
 
     const previousQuantity = item.quantity;
     setIsUpdating(true);
@@ -289,7 +293,7 @@ export function CartItem({ item, onUpdateQuantity, onRemove, selected, onSelectC
                     variant="ghost"
                     size="sm"
                     onClick={() => handleQuantityChange(item.quantity + 1)}
-                    disabled={isUpdating}
+                    disabled={isUpdating || (item.stockQuantity != null && item.quantity >= item.stockQuantity)}
                     className="h-9 w-9 p-0 hover:bg-primary/10 hover:text-primary transition-colors"
                   >
                     <Plus className="h-4 w-4" />

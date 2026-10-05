@@ -20,7 +20,12 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          time_zone: Asia/Ho_Chi_Minh
     defer-datasource-initialization: true
+
+  jackson:
+    time-zone: Asia/Ho_Chi_Minh
 
   sql:
     init:
@@ -28,8 +33,8 @@ spring:
 
   servlet:
     multipart:
-      max-file-size: 5MB
-      max-request-size: 26MB
+      max-file-size: 30MB
+      max-request-size: 35MB
 
   data:
     redis:

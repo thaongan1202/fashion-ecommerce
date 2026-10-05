@@ -26,4 +26,5 @@ export { BrandForm } from './BrandForm';
 export { AdminOrderDetailModal } from './AdminOrderDetailModal';
 export { PaymentHistory } from './PaymentHistory';
 export { ReviewManagement } from './ReviewManagement';
+export { ReturnManagement } from './ReturnManagement';
 

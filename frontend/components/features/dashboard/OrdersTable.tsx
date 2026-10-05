@@ -6,23 +6,44 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Eye, Star } from 'lucide-react';
+import { Eye, Star, Ban, Undo2 } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
 import { getOrderStatus } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ReviewOrderDialog } from '@/components/features/reviews/ReviewOrderDialog';
+import { ReturnRequestDialog } from '@/components/features/orders/ReturnRequestDialog';
+import { orderAPI } from '@/lib/api';
+import { canReturnOrder } from '@/lib/datetime';
+import { toast } from 'sonner';
 import type { Order } from '@/types';
 
 interface OrdersTableProps {
   orders: Order[];
   isAdmin?: boolean;
   onViewDetail?: (orderId: number) => void;
+  onRefresh?: () => void;
 }
 
-export function OrdersTable({ orders, isAdmin = false, onViewDetail }: OrdersTableProps) {
+export function OrdersTable({ orders, isAdmin = false, onViewDetail, onRefresh }: OrdersTableProps) {
   const router = useRouter();
   const [reviewingOrder, setReviewingOrder] = useState<Order | null>(null);
+  const [returningOrder, setReturningOrder] = useState<Order | null>(null);
+  const [cancellingId, setCancellingId] = useState<number | null>(null);
+
+  const handleCancel = async (order: Order) => {
+    if (!window.confirm('Hủy đơn này? Tồn kho sẽ được hoàn lại.')) return;
+    setCancellingId(order.id);
+    try {
+      await orderAPI.cancel(order.id);
+      toast.success('Đã hủy đơn và hoàn tồn kho');
+      onRefresh?.();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Không thể hủy đơn');
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
   const handleViewOrder = (order: Order) => {
     if (isAdmin && onViewDetail) {
@@ -93,6 +114,29 @@ export function OrdersTable({ orders, isAdmin = false, onViewDetail }: OrdersTab
                           Đánh giá
                         </Button>
                       )}
+                      {!isAdmin && (order.canCancel || order.status === 'PENDING') && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 gap-1.5"
+                          disabled={cancellingId === order.id}
+                          onClick={() => handleCancel(order)}
+                        >
+                          <Ban className="h-4 w-4" />
+                          Hủy đơn
+                        </Button>
+                      )}
+                      {!isAdmin && (order.canReturn || canReturnOrder(order.createdAt, order.status, order.returnStatus)) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 gap-1.5"
+                          onClick={() => setReturningOrder(order)}
+                        >
+                          <Undo2 className="h-4 w-4" />
+                          Hoàn hàng
+                        </Button>
+                      )}
                     </div>
                   </td>
                   <td className="py-3 px-4 text-muted-foreground hidden md:table-cell">
@@ -120,6 +164,14 @@ export function OrdersTable({ orders, isAdmin = false, onViewDetail }: OrdersTab
           onOpenChange={(open) => {
             if (!open) setReviewingOrder(null);
           }}
+        />
+      )}
+      {returningOrder && (
+        <ReturnRequestDialog
+          orderId={returningOrder.id}
+          open={Boolean(returningOrder)}
+          onClose={() => setReturningOrder(null)}
+          onSubmitted={() => onRefresh?.()}
         />
       )}
     </div>

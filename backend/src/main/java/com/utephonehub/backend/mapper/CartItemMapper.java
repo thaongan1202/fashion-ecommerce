@@ -7,7 +7,6 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 import java.math.BigDecimal;
-import java.util.Comparator;
 
 /**
  * Mapper for CartItem entity to CartItemResponse DTO
@@ -20,57 +19,60 @@ public interface CartItemMapper {
     @Mapping(target = "productId", source = "product.id")
     @Mapping(target = "productName", source = "product.name")
     @Mapping(target = "productThumbnailUrl", source = "product.thumbnailUrl")
-    @Mapping(target = "unitPrice", expression = "java(getCheapestPrice(cartItem))")
+    @Mapping(target = "unitPrice", expression = "java(getVariantPrice(cartItem))")
     @Mapping(target = "quantity", source = "quantity")
     @Mapping(target = "subtotal", expression = "java(calculateSubtotal(cartItem))")
-    @Mapping(target = "stockQuantity", expression = "java(getTotalStock(cartItem))")
+    @Mapping(target = "stockQuantity", expression = "java(getVariantStock(cartItem))")
     @Mapping(target = "outOfStock", expression = "java(isOutOfStock(cartItem))")
     @Mapping(target = "overStock", expression = "java(isOverStock(cartItem))")
     CartItemResponse toResponse(CartItem cartItem);
 
-    /**
-     * Get cheapest price from active product templates
-     */
-    default BigDecimal getCheapestPrice(CartItem cartItem) {
-        return cartItem.getProduct().getTemplates().stream()
-                .filter(ProductTemplate::getStatus)
-                .map(ProductTemplate::getPrice)
-                .min(Comparator.naturalOrder())
-                .orElse(BigDecimal.ZERO);
+    default BigDecimal getVariantPrice(CartItem cartItem) {
+        ProductTemplate template = matchingTemplate(cartItem);
+        if (template != null && template.getPrice() != null) {
+            return template.getPrice();
+        }
+        return BigDecimal.ZERO;
     }
 
-    /**
-     * Get total stock from all active product templates
-     */
-    default Integer getTotalStock(CartItem cartItem) {
-        return cartItem.getProduct().getTemplates().stream()
-                .filter(ProductTemplate::getStatus)
-                .mapToInt(ProductTemplate::getStockQuantity)
-                .sum();
+    default Integer getVariantStock(CartItem cartItem) {
+        ProductTemplate template = matchingTemplate(cartItem);
+        if (template == null || template.getStockQuantity() == null) {
+            return 0;
+        }
+        return template.getStockQuantity();
     }
 
-    /**
-     * Calculate subtotal = unitPrice * quantity
-     */
     default BigDecimal calculateSubtotal(CartItem cartItem) {
-        BigDecimal price = getCheapestPrice(cartItem);
-        BigDecimal quantity = BigDecimal.valueOf(cartItem.getQuantity());
-        return price.multiply(quantity);
+        return getVariantPrice(cartItem).multiply(BigDecimal.valueOf(cartItem.getQuantity()));
     }
 
-    /**
-     * Check if product is out of stock (all templates have 0 stock)
-     */
     default boolean isOutOfStock(CartItem cartItem) {
-        Integer totalStock = getTotalStock(cartItem);
-        return totalStock == 0;
+        return getVariantStock(cartItem) == 0;
     }
 
-    /**
-     * Check if cart quantity exceeds available stock
-     */
     default boolean isOverStock(CartItem cartItem) {
-        Integer totalStock = getTotalStock(cartItem);
-        return cartItem.getQuantity() > totalStock;
+        return cartItem.getQuantity() > getVariantStock(cartItem);
+    }
+
+    default ProductTemplate matchingTemplate(CartItem cartItem) {
+        if (cartItem.getProduct() == null || cartItem.getProduct().getTemplates() == null) {
+            return null;
+        }
+        return cartItem.getProduct().getTemplates().stream()
+                .filter(template -> Boolean.TRUE.equals(template.getStatus()))
+                .filter(template -> same(template.getColor(), cartItem.getColor())
+                        && same(template.getSize(), cartItem.getSize()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static boolean same(String left, String right) {
+        String a = left == null || left.isBlank() ? null : left.trim();
+        String b = right == null || right.isBlank() ? null : right.trim();
+        if (a == null || b == null) {
+            return a == null && b == null;
+        }
+        return a.equalsIgnoreCase(b);
     }
 }

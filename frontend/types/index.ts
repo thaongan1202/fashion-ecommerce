@@ -71,6 +71,8 @@ export type {
   AdminOrderListResponse,
   AdminOrderDetailResponse,
   AdminOrderItemDto,
+  OrderReturn,
+  ReturnStatistics,
 } from "./order";
 
 // Review types

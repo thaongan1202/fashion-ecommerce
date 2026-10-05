@@ -10,6 +10,9 @@ import { Button } from '@/components/ui/button';
 import { CheckCircle2, Package, Loader2, MapPin, Phone, Mail, User, CreditCard, Truck, Tag, Calendar, ArrowLeft } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
 import { orderAPI } from '@/lib/api';
+import { formatVietnamDateTime, canReturnOrder } from '@/lib/datetime';
+import { ReturnRequestDialog } from '@/components/features/orders/ReturnRequestDialog';
+import { toast } from 'sonner';
 import type { OrderResponse, OrderItem, OrderStatus } from '@/types';
 
 interface OrderDetailPageProps {
@@ -20,10 +23,10 @@ interface OrderDetailPageProps {
 
 // Map trạng thái đơn hàng
 const statusConfig: Record<OrderStatus, { label: string; color: string; bgColor: string }> = {
-  PENDING: { label: 'Đang xử lý', color: 'text-yellow-800', bgColor: 'bg-yellow-100' },
+  PENDING: { label: 'Chờ xác nhận', color: 'text-yellow-800', bgColor: 'bg-yellow-100' },
   CONFIRMED: { label: 'Đã xác nhận', color: 'text-blue-800', bgColor: 'bg-blue-100' },
-  SHIPPING: { label: 'Đang giao hàng', color: 'text-purple-800', bgColor: 'bg-purple-100' },
-  DELIVERED: { label: 'Đã giao hàng', color: 'text-green-800', bgColor: 'bg-green-100' },
+  SHIPPING: { label: 'Đã giao', color: 'text-purple-800', bgColor: 'bg-purple-100' },
+  DELIVERED: { label: 'Giao thành công', color: 'text-green-800', bgColor: 'bg-green-100' },
   CANCELLED: { label: 'Đã hủy', color: 'text-red-800', bgColor: 'bg-red-100' },
 };
 
@@ -42,6 +45,8 @@ export default function OrderDetailPage(props: OrderDetailPageProps) {
   const [order, setOrder] = useState<OrderResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -154,13 +159,7 @@ export default function OrderDetailPage(props: OrderDetailPageProps) {
               {/* Order date */}
               <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
                 <Calendar className="h-4 w-4" />
-                <span>Ngày đặt: {new Date(order.createdAt).toLocaleDateString('vi-VN', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}</span>
+                <span>Ngày đặt: {formatVietnamDateTime(order.createdAt)}</span>
               </div>
 
               {/* Payment method */}
@@ -331,11 +330,38 @@ export default function OrderDetailPage(props: OrderDetailPageProps) {
 
               {/* Actions */}
               <div className="mt-6 space-y-3">
+                {(order.canCancel || order.status === 'PENDING') && (
+                  <Button
+                    variant="destructive"
+                    className="w-full"
+                    disabled={cancelling}
+                    onClick={async () => {
+                      setCancelling(true);
+                      try {
+                        await orderAPI.cancel(order.id);
+                        toast.success('Đã hủy đơn. Tồn kho được hoàn lại.');
+                        const refreshed = await orderAPI.getById(order.id);
+                        if (refreshed.data) setOrder(refreshed.data);
+                      } catch (err) {
+                        toast.error(err instanceof Error ? err.message : 'Không thể hủy đơn');
+                      } finally {
+                        setCancelling(false);
+                      }
+                    }}
+                  >
+                    Hủy đơn hàng
+                  </Button>
+                )}
+                {(order.canReturn || canReturnOrder(order.createdAt, order.status, order.returnStatus)) && (
+                  <Button variant="outline" className="w-full" onClick={() => setReturnOpen(true)}>
+                    Hoàn hàng
+                  </Button>
+                )}
                 <Button
-                  onClick={() => router.push('/manage?tab=orders')}
+                  onClick={() => router.push('/user?tab=orders')}
                   className="w-full"
                 >
-                  Quản lý đơn hàng
+                  Đơn hàng của tôi
                 </Button>
                 <Button
                   onClick={() => router.push('/')}
@@ -349,6 +375,15 @@ export default function OrderDetailPage(props: OrderDetailPageProps) {
           </div>
         </div>
       </div>
+      <ReturnRequestDialog
+        orderId={order.id}
+        open={returnOpen}
+        onClose={() => setReturnOpen(false)}
+        onSubmitted={async () => {
+          const refreshed = await orderAPI.getById(order.id);
+          if (refreshed.data) setOrder(refreshed.data);
+        }}
+      />
     </div>
   );
 }

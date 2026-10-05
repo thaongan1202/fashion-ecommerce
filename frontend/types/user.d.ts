@@ -11,6 +11,7 @@ export interface User {
   dateOfBirth: string | null;
   role: 'CUSTOMER' | 'ADMIN';
   status: 'ACTIVE' | 'LOCKED' | 'EMAIL_VERIFIED';
+  walletBalance?: number | null;
   createdAt?: string;
   updatedAt?: string;
 }

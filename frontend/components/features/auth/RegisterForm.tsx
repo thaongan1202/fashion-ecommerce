@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -36,6 +36,11 @@ export function RegisterForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
+  const [otpStep, setOtpStep] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  const [attemptsLeft, setAttemptsLeft] = useState(5);
+  const [locked, setLocked] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -93,11 +98,12 @@ export function RegisterForm() {
         confirmPassword: formData.confirmPassword,
       });
 
-      if (response.success && response.status === 201) {
-        setSuccess('Đăng ký thành công! Đang chuyển đến trang đăng nhập...');
-        setTimeout(() => {
-          router.push(ROUTES.LOGIN);
-        }, 2000);
+      if (response.success && response.data) {
+        setOtpStep(true);
+        setSecondsLeft(response.data.expiresInSeconds || 60);
+        setAttemptsLeft(response.data.remainingAttempts ?? 5);
+        setLocked(false);
+        setSuccess(`Mã OTP đã gửi tới ${response.data.email}. Mã hết hạn sau 60 giây.`);
       } else {
         setError(response.message || 'Đăng ký thất bại');
       }
@@ -108,6 +114,111 @@ export function RegisterForm() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!otpStep || secondsLeft <= 0) return;
+    const timer = window.setInterval(() => {
+      setSecondsLeft((current) => (current > 0 ? current - 1 : 0));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [otpStep, secondsLeft > 0]);
+
+  const handleVerifyOtp = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    if (!/^\d{6}$/.test(otp)) {
+      setError('OTP phải gồm 6 chữ số');
+      return;
+    }
+    setLoading(true);
+    try {
+      const response = await authAPI.verifyRegistrationOtp({
+        email: formData.email,
+        otp,
+      });
+      if (response.success) {
+        setSuccess('Xác thực email thành công. Đang chuyển đến trang đăng nhập...');
+        setTimeout(() => router.push(ROUTES.LOGIN), 1500);
+      } else {
+        setError(response.message || 'OTP không hợp lệ');
+      }
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'OTP không hợp lệ';
+      setError(errorMessage);
+      if (errorMessage.includes('5 lần')) {
+        setLocked(true);
+        setAttemptsLeft(0);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const response = await authAPI.resendRegistrationOtp(formData.email);
+      if (response.success && response.data) {
+        setSecondsLeft(response.data.expiresInSeconds || 60);
+        setAttemptsLeft(response.data.remainingAttempts ?? 5);
+        setLocked(false);
+        setOtp('');
+        setSuccess('Đã gửi OTP mới. Mã có hiệu lực 60 giây.');
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Không thể cấp lại OTP');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (otpStep) {
+    return (
+      <form onSubmit={handleVerifyOtp} className="p-6 space-y-4">
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+            <p className="text-sm text-red-700">{error}</p>
+          </div>
+        )}
+        {success && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex gap-3">
+            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+            <p className="text-sm text-green-700">{success}</p>
+          </div>
+        )}
+        <div>
+          <p className="text-sm text-muted-foreground">
+            Nhập mã OTP đã gửi tới <strong>{formData.email}</strong>. Mã hết hạn sau{' '}
+            <strong>{secondsLeft}s</strong>. Còn {attemptsLeft} lần nhập.
+          </p>
+          <input
+            inputMode="numeric"
+            maxLength={6}
+            value={otp}
+            onChange={(event) => setOtp(event.target.value.replace(/\D/g, '').slice(0, 6))}
+            className="mt-3 w-full rounded-lg border border-input bg-background px-4 py-3 text-center text-2xl tracking-[0.4em]"
+            placeholder="000000"
+            disabled={loading || locked}
+          />
+        </div>
+        <Button type="submit" className="w-full" disabled={loading || locked || secondsLeft <= 0}>
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Xác nhận OTP'}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          disabled={loading || secondsLeft > 0}
+          onClick={handleResendOtp}
+        >
+          {secondsLeft > 0 ? `Yêu cầu OTP mới sau ${secondsLeft}s` : 'Gửi lại OTP'}
+        </Button>
+      </form>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="p-6 space-y-4">

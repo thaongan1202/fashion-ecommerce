@@ -63,6 +63,9 @@ public class Order {
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal totalAmount;
 
+    /** true sau khi thanh toán thành công đã trừ tồn kho */
+    private Boolean stockDeducted;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "promotion_id")
     private Promotion promotion;

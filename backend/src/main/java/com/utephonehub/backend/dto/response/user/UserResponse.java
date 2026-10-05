@@ -7,6 +7,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -25,6 +26,7 @@ public class UserResponse {
     private LocalDate dateOfBirth;
     private String role;
     private String status;
+    private BigDecimal walletBalance;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -39,6 +41,7 @@ public class UserResponse {
                 .dateOfBirth(user.getDateOfBirth())
                 .role(user.getRole() != null ? user.getRole().name() : null)
                 .status(user.getStatus() != null ? user.getStatus().name() : null)
+                .walletBalance(user.getWalletBalance() == null ? BigDecimal.ZERO : user.getWalletBalance())
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
                 .build();

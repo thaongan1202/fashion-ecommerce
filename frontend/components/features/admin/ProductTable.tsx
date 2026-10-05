@@ -246,6 +246,14 @@ export function ProductTable({ filters, onEdit, onRefresh }: ProductTableProps) 
   };
 
   const handleUpdateProduct = async (productId: number) => {
+    if (!Number.isFinite(editForm.price) || editForm.price <= 0) {
+      toast.error('Đơn giá không được bằng 0 hoặc số âm');
+      return;
+    }
+    if (!Number.isFinite(editForm.stockQuantity) || editForm.stockQuantity < 1) {
+      toast.error('Số lượng phải lớn hơn hoặc bằng 1 và không được âm');
+      return;
+    }
     try {
       const response = await productAPI.update(productId, editForm);
       
@@ -483,7 +491,7 @@ export function ProductTable({ filters, onEdit, onRefresh }: ProductTableProps) 
                           value={editForm.price}
                           onChange={(e) => setEditForm({...editForm, price: Number(e.target.value)})}
                           className="w-full px-3 py-2 border rounded-md"
-                          min="0"
+                          min={1}
                         />
                       </div>
                       <div>
@@ -493,7 +501,7 @@ export function ProductTable({ filters, onEdit, onRefresh }: ProductTableProps) 
                           value={editForm.stockQuantity}
                           onChange={(e) => setEditForm({...editForm, stockQuantity: Number(e.target.value)})}
                           className="w-full px-3 py-2 border rounded-md"
-                          min="0"
+                          min={1}
                         />
                       </div>
                     </div>

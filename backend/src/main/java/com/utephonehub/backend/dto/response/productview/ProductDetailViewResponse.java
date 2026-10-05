@@ -59,6 +59,7 @@ public class ProductDetailViewResponse {
         private Long id;
         private String name;
         private String logoUrl;
+        private String description;
     }
     
     @Data

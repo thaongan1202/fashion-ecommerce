@@ -67,7 +67,11 @@ export function BrandForm({ brand, onSuccess, onCancel }: BrandFormProps) {
     }
 
     // Description validation (matching backend: max 500 characters)
-    if (formData.description && formData.description.length > 500) {
+    if (!formData.description.trim()) {
+      newErrors.description = 'Mô tả thương hiệu không được để trống';
+    } else if (formData.description.trim().length < 10) {
+      newErrors.description = 'Mô tả thương hiệu phải có ít nhất 10 ký tự';
+    } else if (formData.description.length > 500) {
       newErrors.description = 'Mô tả không được vượt quá 500 ký tự';
     }
 
@@ -195,7 +199,7 @@ export function BrandForm({ brand, onSuccess, onCancel }: BrandFormProps) {
           {/* Description field */}
           <div>
             <label htmlFor="brand-description" className="block text-sm font-medium text-foreground mb-1.5">
-              Mô tả
+              Mô tả thương hiệu <span className="text-destructive">*</span>
             </label>
             <textarea
               id="brand-description"

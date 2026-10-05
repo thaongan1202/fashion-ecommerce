@@ -78,6 +78,7 @@ export interface BrandInfo {
   id: number;
   name: string;
   logoUrl: string;
+  description?: string | null;
 }
 
 export interface ProductVariant {

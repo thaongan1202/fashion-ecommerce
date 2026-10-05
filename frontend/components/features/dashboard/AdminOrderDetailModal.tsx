@@ -22,8 +22,8 @@ interface AdminOrderDetailModalProps {
 const STATUS_LABELS: Record<OrderStatus, string> = {
     PENDING: "Chờ xác nhận",
     CONFIRMED: "Đã xác nhận",
-    SHIPPING: "Đang giao hàng",
-    DELIVERED: "Đã giao hàng",
+    SHIPPING: "Đã giao",
+    DELIVERED: "Giao thành công",
     CANCELLED: "Đã hủy",
 };
 
