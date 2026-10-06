@@ -16,6 +16,7 @@ import com.utephonehub.backend.repository.OrderReturnRepository;
 import com.utephonehub.backend.repository.UserRepository;
 import com.utephonehub.backend.service.IOrderReturnService;
 import com.utephonehub.backend.service.InventoryService;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -39,6 +40,8 @@ public class OrderReturnServiceImpl implements IOrderReturnService {
     private final UserRepository userRepository;
     private final ReturnEvidenceStorageService evidenceStorageService;
     private final InventoryService inventoryService;
+    private final AdminNotificationService adminNotificationService;
+    private final EntityManager entityManager;
 
     @Override
     @Transactional
@@ -75,6 +78,13 @@ public class OrderReturnServiceImpl implements IOrderReturnService {
                 .refundAmount(BigDecimal.ZERO)
                 .build();
         orderReturn = orderReturnRepository.save(orderReturn);
+        adminNotificationService.notifyReturnRequested(
+                orderReturn.getId(),
+                order.getOrderCode(),
+                user.getFullName(),
+                user.getEmail(),
+                order.getTotalAmount(),
+                orderReturn.getReason());
         log.info("User {} requested return for order {}", userId, order.getOrderCode());
         return OrderReturnResponse.fromEntity(orderReturn);
     }
@@ -132,26 +142,36 @@ public class OrderReturnServiceImpl implements IOrderReturnService {
         OrderReturn orderReturn = loadPending(returnId);
         Order order = orderReturn.getOrder();
         User user = orderReturn.getUser();
-        BigDecimal amount = order.getTotalAmount() == null ? BigDecimal.ZERO : order.getTotalAmount();
+        BigDecimal amount = refundAmountOf(order);
+        Long walletUserId = user.getId();
 
-        BigDecimal balance = user.getWalletBalance() == null ? BigDecimal.ZERO : user.getWalletBalance();
-        user.setWalletBalance(balance.add(amount));
-        userRepository.save(user);
-
-        if (order.getItems() != null) {
-            for (OrderItem item : order.getItems()) {
-                if (item.getProduct() != null && item.getQuantity() != null) {
-                    inventoryService.restore(item.getProduct(), item.getColor(), item.getSize(), item.getQuantity());
+        try {
+            if (order.getItems() != null) {
+                for (OrderItem item : order.getItems()) {
+                    if (item.getProduct() != null && item.getQuantity() != null && item.getQuantity() > 0) {
+                        inventoryService.restore(item.getProduct(), item.getColor(), item.getSize(), item.getQuantity());
+                    }
                 }
             }
+        } catch (Exception exception) {
+            log.error("Không hoàn được tồn kho cho yêu cầu {}, vẫn hoàn tiền vào ví", returnId, exception);
         }
 
         orderReturn.setStatus(ReturnStatus.APPROVED);
         orderReturn.setRefundAmount(amount);
         orderReturn.setReviewedAt(LocalDateTime.now());
-        orderReturnRepository.save(orderReturn);
-        log.info("Approved return {} and refunded {} to user {}", returnId, amount, user.getId());
-        return OrderReturnResponse.fromEntity(orderReturn);
+        orderReturnRepository.saveAndFlush(orderReturn);
+        OrderReturnResponse response = OrderReturnResponse.fromEntity(orderReturn);
+
+        if (entityManager.contains(user)) {
+            entityManager.detach(user);
+        }
+        int credited = userRepository.creditWallet(walletUserId, amount);
+        if (credited != 1) {
+            throw new BadRequestException("Không thể cộng tiền hoàn vào ví khách");
+        }
+        log.info("Approved return {} and refunded {} to user {}", returnId, amount, walletUserId);
+        return response;
     }
 
     @Override
@@ -176,5 +196,23 @@ public class OrderReturnServiceImpl implements IOrderReturnService {
             throw new BadRequestException("Yêu cầu hoàn này đã được xử lý");
         }
         return orderReturn;
+    }
+
+    private BigDecimal refundAmountOf(Order order) {
+        BigDecimal amount = order.getTotalAmount();
+        if (amount != null && amount.compareTo(BigDecimal.ZERO) > 0) {
+            return amount;
+        }
+        if (order.getItems() == null) {
+            throw new BadRequestException("Đơn hàng không có số tiền để hoàn vào ví");
+        }
+        BigDecimal summed = order.getItems().stream()
+                .filter(item -> item.getPrice() != null && item.getQuantity() != null)
+                .map(item -> item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (summed.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BadRequestException("Đơn hàng không có số tiền để hoàn vào ví");
+        }
+        return summed;
     }
 }

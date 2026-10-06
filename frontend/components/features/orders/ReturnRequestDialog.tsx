@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { orderAPI } from '@/lib/api';
 import { toast } from 'sonner';
@@ -28,6 +28,7 @@ export function ReturnRequestDialog({ orderId, open, onClose, onSubmitted }: Ret
   const [otherReason, setOtherReason] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!open) return null;
 
@@ -116,13 +117,22 @@ export function ReturnRequestDialog({ orderId, open, onClose, onSubmitted }: Ret
         <label className="mt-4 block text-sm font-medium" htmlFor={`return-image-${orderId}`}>
           Hình ảnh minh chứng
         </label>
-        <input
-          id={`return-image-${orderId}`}
-          type="file"
-          accept="image/jpeg,image/png,image/webp,image/gif"
-          className="mt-1 block w-full text-sm"
-          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-        />
+        <div className="mt-1 flex flex-wrap items-center gap-3">
+          <input
+            ref={fileInputRef}
+            id={`return-image-${orderId}`}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            className="hidden"
+            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+          />
+          <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
+            Choose file
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            {file ? file.name : 'Chưa chọn ảnh'}
+          </span>
+        </div>
 
         <div className="mt-5 flex justify-end gap-2">
           <Button variant="outline" onClick={onClose} disabled={loading}>Đóng</Button>

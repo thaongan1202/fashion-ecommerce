@@ -20,6 +20,7 @@ public interface UserMapper {
     @Mapping(target = "status", expression = "java(user.getStatus() != null ? user.getStatus().name() : null)")
     @Mapping(target = "gender", source = "gender")
     @Mapping(target = "dateOfBirth", source = "dateOfBirth")
+    @Mapping(target = "walletBalance", source = "walletBalance")
     UserResponse toResponse(User user);
     
     /**

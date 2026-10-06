@@ -47,7 +47,7 @@ public class UserServiceImpl implements IUserService {
         log.info("Getting user with id: {}", userId);
         User user = userRepository.findByIdAndDeletedAtIsNull(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
-        return userMapper.toResponse(user);
+        return UserResponse.fromEntity(user);
     }
 
     @Override
@@ -72,7 +72,7 @@ public class UserServiceImpl implements IUserService {
         user = userRepository.save(user);
         log.info("Profile updated successfully for user id: {}", userId);
 
-        return userMapper.toResponse(user);
+        return UserResponse.fromEntity(user);
     }
 
     @Override

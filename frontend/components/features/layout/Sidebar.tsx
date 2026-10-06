@@ -12,6 +12,7 @@ interface MenuItem {
     id: string;
     label: string;
     icon: LucideIcon;
+    badge?: number;
 }
 
 interface SidebarProps {
@@ -109,7 +110,12 @@ export function Sidebar({
                             )}
                         >
                             <Icon className="w-5 h-5 flex-shrink-0" />
-                            {sidebarOpen && <span>{item.label}</span>}
+                            {sidebarOpen && <span className="flex-1 text-left">{item.label}</span>}
+                            {!!item.badge && item.badge > 0 && (
+                                <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-semibold text-white">
+                                    {item.badge > 9 ? '9+' : item.badge}
+                                </span>
+                            )}
                         </button>
                     );
                 })}

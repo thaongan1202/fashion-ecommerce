@@ -5,8 +5,6 @@ import com.utephonehub.backend.dto.request.order.CreateOrderRequest;
 import com.utephonehub.backend.dto.request.order.OrderItemRequest;
 import com.utephonehub.backend.dto.response.order.CreateOrderResponse;
 import com.utephonehub.backend.dto.response.order.OrderResponse;
-import com.utephonehub.backend.dto.request.payment.CreatePaymentRequest;
-import com.utephonehub.backend.dto.response.payment.VNPayPaymentResponse;
 import com.utephonehub.backend.entity.Cart;
 import com.utephonehub.backend.entity.CartItem;
 import com.utephonehub.backend.entity.Order;
@@ -38,9 +36,7 @@ import com.utephonehub.backend.repository.PromotionRepository;
 import com.utephonehub.backend.repository.UserRepository;
 import com.utephonehub.backend.service.IEmailService;
 import com.utephonehub.backend.service.IOrderService;
-import com.utephonehub.backend.service.IVNPayService;
 import com.utephonehub.backend.service.InventoryService;
-import com.utephonehub.backend.util.SecurityUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -74,8 +70,6 @@ public class OrderServiceImpl implements IOrderService {
     private final OrderMapper orderMapper;
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
-    private final IVNPayService vnPayService;
-    private final SecurityUtils securityUtils;
     private final IEmailService emailService;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final InventoryService inventoryService;
@@ -116,6 +110,10 @@ public class OrderServiceImpl implements IOrderService {
     @CacheEvict(value = "cart", key = "#userId")
     public CreateOrderResponse createOrder(CreateOrderRequest request, Long userId, HttpServletRequest servletRequest) {
         log.info("Creating order for user: {}", userId);
+
+        if (request.getPaymentMethod() == PaymentMethod.VNPAY) {
+            throw new BadRequestException("Thanh toán VNPay không còn được hỗ trợ. Vui lòng chọn thanh toán khi nhận hàng hoặc chuyển khoản.");
+        }
         
         // 1. Validate user tồn tại
         User user = userRepository.findById(userId)
@@ -392,38 +390,7 @@ public class OrderServiceImpl implements IOrderService {
                 .createdAt(order.getCreatedAt())
                 .build();
         
-        // 13. If payment method is VNPay, add instruction message
-        if (request.getPaymentMethod() == PaymentMethod.VNPAY) {
-            response.setMessage("Đơn hàng đã tạo. Đang chuyển hướng thanh toán VNPay...");
-            
-            // Tích hợp VNPay payment URL
-            try {
-                CreatePaymentRequest paymentRequest = CreatePaymentRequest.builder()
-                        .orderId(order.getId())
-                        .amount(totalAmount.longValue())
-                        .orderInfo("Thanh toan don hang " + orderCode)
-                        .locale("vn")
-                        .build();
-
-                // Lấy IP client phục vụ VNPay; nếu servletRequest null thì fallback về 127.0.0.1
-                String ipAddress;
-                if (servletRequest != null) {
-                    ipAddress = securityUtils.getClientIp(servletRequest);
-                } else {
-                    log.warn("HttpServletRequest is null when creating VNPay URL for order {}. Using fallback IP 127.0.0.1", orderCode);
-                    ipAddress = "127.0.0.1";
-                }
-
-                VNPayPaymentResponse paymentResponse = vnPayService.createPaymentUrl(paymentRequest, ipAddress);
-                response.setPaymentUrl(paymentResponse.getPaymentUrl());
-                log.info("Generated VNPay URL for order {}: {}", orderCode, paymentResponse.getPaymentUrl());
-            } catch (Exception e) {
-                log.error("Failed to generate VNPay URL for order {}", orderCode, e);
-                response.setMessage("Đơn hàng đã tạo nhưng lỗi tạo link thanh toán. Vui lòng thử lại trong lịch sử đơn hàng.");
-            }
-        } else {
-            response.setMessage("Đơn hàng đã được tạo thành công!");
-        }
+        response.setMessage("Đơn hàng đã được tạo thành công!");
         
         log.info("Order created successfully: {}", orderCode);
         return response;

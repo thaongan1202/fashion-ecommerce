@@ -11,11 +11,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -29,9 +27,6 @@ public class AuthController {
 
     private final IAuthService authService;
     private final SecurityUtils securityUtils;
-
-    @Value("${app.oauth2.authorization-uri:/oauth2/authorization/google}")
-    private String googleAuthorizationUri;
 
     @PostMapping("/register")
     @Operation(summary = "Đăng ký tài khoản mới", description = "Tạo một tài khoản khách hàng mới")
@@ -142,17 +137,6 @@ public class AuthController {
         UserResponse user = authService.verifyRegistrationOtp(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created("Xác thực email thành công. Tài khoản đã được tạo.", user));
-    }
-
-    @GetMapping("/login/google")
-    @Operation(summary = "Bắt đầu đăng nhập bằng Google", description = "Redirect người dùng tới Google OAuth2 login")
-    @ApiResponses(value = {
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "302", description = "Redirect tới Google"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Lỗi khi xây dựng URL đăng nhập Google")
-    })
-    public void loginWithGoogle(HttpServletResponse response) throws java.io.IOException {
-        log.info("Start Google OAuth2 login flow, redirecting to {}", googleAuthorizationUri);
-        response.sendRedirect(googleAuthorizationUri);
     }
 }
 

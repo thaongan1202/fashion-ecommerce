@@ -13,7 +13,6 @@ import { authAPI, setAuthTokens, setStoredUser } from '@/lib/api';
 import { useAuth } from '@/hooks';
 import { useFormValidation } from '@/hooks';
 import { ROUTES } from '@/lib/constants';
-import { SocialLogin } from './SocialLogin';
 
 export function LoginForm() {
   const router = useRouter();
@@ -184,9 +183,6 @@ export function LoginForm() {
           'Đăng nhập'
         )}
       </Button>
-
-      {/* Social Login */}
-      <SocialLogin mode="login" loading={loading} />
     </form>
   );
 }

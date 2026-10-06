@@ -644,6 +644,30 @@ export const orderAPI = {
   },
 };
 
+export interface AdminNotificationItem {
+  id: number;
+  title: string;
+  message: string;
+  type: string;
+  referenceId?: number;
+  read: boolean;
+  createdAt: string;
+}
+
+export const notificationAPI = {
+  list: async (): Promise<ApiResponse<{ unreadCount: number; items: AdminNotificationItem[] }>> => {
+    return fetchAPI<{ unreadCount: number; items: AdminNotificationItem[] }>("/admin/notifications", {
+      method: "GET",
+    });
+  },
+  markRead: async (id: number): Promise<ApiResponse<null>> => {
+    return fetchAPI<null>(`/admin/notifications/${id}/read`, { method: "POST" });
+  },
+  markAllRead: async (): Promise<ApiResponse<null>> => {
+    return fetchAPI<null>("/admin/notifications/read-all", { method: "POST" });
+  },
+};
+
 export const returnAPI = {
   list: async (status?: string): Promise<ApiResponse<{ content: OrderReturn[] }>> => {
     const query = status && status !== "ALL" ? `?status=${status}&size=50` : "?size=50";

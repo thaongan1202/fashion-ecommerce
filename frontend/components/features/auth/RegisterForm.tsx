@@ -13,7 +13,6 @@ import { authAPI } from '@/lib/api';
 import { useFormValidation } from '@/hooks';
 import { ROUTES } from '@/lib/constants';
 import { validateVietnameseMobilePhone } from '@/lib/utils/validators';
-import { SocialLogin } from './SocialLogin';
 
 export function RegisterForm() {
   const router = useRouter();
@@ -476,9 +475,6 @@ export function RegisterForm() {
           'Đăng ký'
         )}
       </Button>
-
-      {/* Social Login */}
-      <SocialLogin mode="register" loading={loading} />
     </form>
   );
 }
