@@ -68,8 +68,15 @@ export const useCartStore = create<CartState>()(
         return;
       }
 
+      const current = get().items.find((item) => item.id === id);
+      const stock = current?.stockQuantity;
+      const nextQuantity = stock != null && quantity > stock ? stock : quantity;
+      if (nextQuantity < 1) {
+        return;
+      }
+
       const newItems = get().items.map((item) =>
-        item.id === id ? { ...item, quantity } : item
+        item.id === id ? { ...item, quantity: nextQuantity } : item
       );
 
       const totals = calculateCartTotals(newItems);

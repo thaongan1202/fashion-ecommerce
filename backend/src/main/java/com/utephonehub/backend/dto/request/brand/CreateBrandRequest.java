@@ -17,7 +17,8 @@ public class CreateBrandRequest {
     @Size(min = 2, max = 100, message = "Tên thương hiệu phải từ 2-100 ký tự")
     private String name;
 
-    @Size(max = 500, message = "Mô tả không được vượt quá 500 ký tự")
+    @NotBlank(message = "Mô tả thương hiệu không được để trống")
+    @Size(min = 10, max = 500, message = "Mô tả thương hiệu phải từ 10 đến 500 ký tự")
     private String description;
 
     @Size(max = 255, message = "URL logo không được vượt quá 255 ký tự")

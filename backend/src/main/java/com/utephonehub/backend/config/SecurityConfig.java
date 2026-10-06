@@ -87,7 +87,8 @@ public class SecurityConfig {
                                                                 "/api/v1/public/**")
                                                 .permitAll()
                                                 .requestMatchers(org.springframework.http.HttpMethod.GET,
-                                                                "/uploads/reviews/**")
+                                                                "/uploads/reviews/**",
+                                                                "/uploads/returns/**")
                                                 .permitAll()
 
                                                 // Payment endpoints (VNPay callbacks)
@@ -151,6 +152,7 @@ public class SecurityConfig {
                                                 // Sử dụng hasRole(\"ADMIN\") để đồng bộ với các endpoint admin khác
                                                 // (ROLE_ADMIN)
                                                 .requestMatchers("/api/v1/admin/orders/**").hasRole("ADMIN")
+                                                .requestMatchers("/api/v1/admin/returns/**").hasRole("ADMIN")
 
                                                 // Other admin endpoints
                                                 .requestMatchers(

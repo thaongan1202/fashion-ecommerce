@@ -4,7 +4,9 @@ import com.utephonehub.backend.dto.ApiResponse;
 import com.utephonehub.backend.dto.request.order.CreateOrderRequest;
 import com.utephonehub.backend.dto.response.order.CreateOrderResponse;
 import com.utephonehub.backend.dto.response.order.OrderResponse;
+import com.utephonehub.backend.dto.response.order.OrderReturnResponse;
 import com.utephonehub.backend.enums.OrderStatus;
+import com.utephonehub.backend.service.IOrderReturnService;
 import com.utephonehub.backend.service.IOrderService;
 import com.utephonehub.backend.util.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,6 +27,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1/orders")
@@ -33,6 +36,7 @@ import org.springframework.web.bind.annotation.*;
 public class OrderController {
 
 	private final IOrderService orderService;
+	private final IOrderReturnService orderReturnService;
 	private final SecurityUtils securityUtils;
 
 	/**
@@ -170,8 +174,33 @@ public class OrderController {
 		Long userId = securityUtils.getCurrentUserId(request);
 		orderService.cancelMyOrder(orderId, userId);
 
-		return ResponseEntity.ok(ApiResponse.success("Hủy đơn hàng thành công",
-				"Đơn hàng đã được hủy và tồn kho đã được hoàn lại. Nếu đã thanh toán, chúng tôi sẽ hoàn tiền trong 3-5 ngày làm việc."));
+		return ResponseEntity.ok(ApiResponse.success("Hủy đơn hàng thành công. Tồn kho đã được hoàn lại.",
+				"Đơn hàng đã được hủy trước khi admin xác nhận."));
+	}
+
+	@PostMapping(value = "/{orderId}/returns", consumes = "multipart/form-data")
+	@Operation(summary = "Yêu cầu hoàn hàng", description = "Trong 3 ngày kể từ ngày đặt, sau khi giao thành công. Bắt buộc lý do và ảnh/video.")
+	@SecurityRequirement(name = "bearerAuth")
+	public ResponseEntity<ApiResponse<OrderReturnResponse>> createReturn(
+			@PathVariable Long orderId,
+			@RequestParam String reason,
+			@RequestParam("evidence") MultipartFile evidence,
+			HttpServletRequest request) {
+		Long userId = securityUtils.getCurrentUserId(request);
+		OrderReturnResponse created = orderReturnService.createReturn(userId, orderId, reason, evidence);
+		return ResponseEntity.status(HttpStatus.CREATED)
+				.body(ApiResponse.created("Đã gửi yêu cầu hoàn hàng", created));
+	}
+
+	@GetMapping("/{orderId}/returns")
+	@Operation(summary = "Xem yêu cầu hoàn của đơn hàng")
+	@SecurityRequirement(name = "bearerAuth")
+	public ResponseEntity<ApiResponse<OrderReturnResponse>> getMyReturn(
+			@PathVariable Long orderId,
+			HttpServletRequest request) {
+		Long userId = securityUtils.getCurrentUserId(request);
+		return ResponseEntity.ok(ApiResponse.success("Yêu cầu hoàn hàng",
+				orderReturnService.getMyReturn(userId, orderId)));
 	}
 
 	@GetMapping("/{orderId}/can-cancel")

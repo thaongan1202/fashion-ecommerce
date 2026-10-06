@@ -19,6 +19,7 @@ export interface CartItemDetails {
     quantity: number;
     color?: string;
     size?: string;
+    stockQuantity?: number;
 }
 
 /**
@@ -103,6 +104,7 @@ export function useCartActions() {
                     quantity: details.quantity,
                     color: details.color,
                     size: details.size,
+                    stockQuantity: details.stockQuantity,
                 } as any);
                 toast.success("Đã thêm vào giỏ (khách) — đăng nhập để đồng bộ");
                 return true;

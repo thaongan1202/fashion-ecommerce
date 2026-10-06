@@ -16,6 +16,7 @@ import com.utephonehub.backend.entity.Product;
 import com.utephonehub.backend.entity.ProductTemplate;
 import com.utephonehub.backend.entity.Promotion;
 import com.utephonehub.backend.entity.User;
+import com.utephonehub.backend.entity.OrderReturn;
 import com.utephonehub.backend.enums.OrderStatus;
 import com.utephonehub.backend.enums.PaymentMethod;
 import com.utephonehub.backend.enums.PaymentStatus;
@@ -30,6 +31,7 @@ import com.utephonehub.backend.repository.CartItemRepository;
 import com.utephonehub.backend.repository.CartRepository;
 import com.utephonehub.backend.repository.OrderItemRepository;
 import com.utephonehub.backend.repository.OrderRepository;
+import com.utephonehub.backend.repository.OrderReturnRepository;
 import com.utephonehub.backend.repository.PaymentRepository;
 import com.utephonehub.backend.repository.ProductRepository;
 import com.utephonehub.backend.repository.PromotionRepository;
@@ -37,6 +39,7 @@ import com.utephonehub.backend.repository.UserRepository;
 import com.utephonehub.backend.service.IEmailService;
 import com.utephonehub.backend.service.IOrderService;
 import com.utephonehub.backend.service.IVNPayService;
+import com.utephonehub.backend.service.InventoryService;
 import com.utephonehub.backend.util.SecurityUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -75,6 +78,8 @@ public class OrderServiceImpl implements IOrderService {
     private final SecurityUtils securityUtils;
     private final IEmailService emailService;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
+    private final InventoryService inventoryService;
+    private final OrderReturnRepository orderReturnRepository;
     
     @Override
     @Transactional(readOnly = true)
@@ -96,7 +101,7 @@ public class OrderServiceImpl implements IOrderService {
         
         // 3. Convert sang DTO bằng Mapper
         log.info("Get order {} by user {}", orderId, userId);
-        return orderMapper.toOrderResponse(order); 
+        return toCustomerOrderResponse(order); 
     }
     
     @Override
@@ -137,33 +142,30 @@ public class OrderServiceImpl implements IOrderService {
         BigDecimal totalAmount = BigDecimal.ZERO;
         List<OrderItemRequest> validatedItems = new ArrayList<>();
         
-        // Tổng số lượng yêu cầu theo sản phẩm (gộp các dòng khác màu/size) để kiểm tra tồn kho đúng
-        Map<Long, Integer> requestedQtyByProduct = request.getItems().stream()
-                .collect(Collectors.toMap(OrderItemRequest::getProductId, OrderItemRequest::getQuantity, Integer::sum));
+        // Tổng số lượng theo đúng biến thể màu/size
+        Map<String, Integer> requestedByVariant = new java.util.HashMap<>();
+        for (OrderItemRequest item : request.getItems()) {
+            if (item.getQuantity() == null || item.getQuantity() < 1) {
+                throw new BadRequestException("Số lượng không được âm và phải lớn hơn hoặc bằng 1");
+            }
+            String variantKey = item.getProductId() + "|" + normalizeVariant(item.getColor()) + "|" + normalizeVariant(item.getSize());
+            requestedByVariant.merge(variantKey, item.getQuantity(), Integer::sum);
+        }
 
         for (OrderItemRequest item : request.getItems()) {
             Product product = productMap.get(item.getProductId());
-            
-            // Calculate total stock from templates
-            int totalStock = product.getTemplates().stream()
-                    .filter(ProductTemplate::getStatus)
-                    .mapToInt(ProductTemplate::getStockQuantity)
-                    .sum();
-            
-            // Kiểm tra tồn kho
-            if (totalStock < requestedQtyByProduct.get(item.getProductId())) {
+            String variantKey = item.getProductId() + "|" + normalizeVariant(item.getColor()) + "|" + normalizeVariant(item.getSize());
+            int requested = requestedByVariant.get(variantKey);
+            int variantStock = inventoryService.availableStock(product, item.getColor(), item.getSize());
+
+            if (requested > variantStock) {
                 throw new BadRequestException(
-                    String.format("Sản phẩm '%s' chỉ còn %d sản phẩm trong kho", 
-                        product.getName(), totalStock)
+                    String.format("Sản phẩm '%s' chỉ còn %d trong kho. Không thể đặt số lượng lớn hơn hàng còn.",
+                        product.getName(), variantStock)
                 );
             }
-            
-            // Get cheapest price from active templates
-            BigDecimal price = product.getTemplates().stream()
-                    .filter(ProductTemplate::getStatus)
-                    .map(ProductTemplate::getPrice)
-                    .min(Comparator.naturalOrder())
-                    .orElse(BigDecimal.ZERO);
+
+            BigDecimal price = inventoryService.priceOf(product, item.getColor(), item.getSize());
             
             // Tính tổng tiền
             BigDecimal itemTotal = price.multiply(new BigDecimal(item.getQuantity()));
@@ -254,10 +256,8 @@ public class OrderServiceImpl implements IOrderService {
         // 6. Tạo orderCode unique
         String orderCode = generateUniqueOrderCode();
         
-        // 7. Xác định trạng thái đơn hàng
-        OrderStatus initialStatus = request.getPaymentMethod() == PaymentMethod.VNPAY
-                ? OrderStatus.PENDING
-                : OrderStatus.CONFIRMED;
+        // Đơn mới luôn chờ admin xác nhận. Tồn kho chỉ trừ khi đã thanh toán.
+        OrderStatus initialStatus = OrderStatus.PENDING;
         
         // 8. Tạo Order entity
         Order order = Order.builder()
@@ -275,6 +275,7 @@ public class OrderServiceImpl implements IOrderService {
                 .totalAmount(totalAmount)
                 .promotion(promotion)
                 .freeshippingPromotion(freeshippingPromotion)
+                .stockDeducted(false)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
@@ -287,12 +288,8 @@ public class OrderServiceImpl implements IOrderService {
         for (OrderItemRequest itemReq : validatedItems) {
             Product product = productMap.get(itemReq.getProductId());
             
-            // Get cheapest price from active templates
-            BigDecimal price = product.getTemplates().stream()
-                    .filter(ProductTemplate::getStatus)
-                    .map(ProductTemplate::getPrice)
-                    .min(Comparator.naturalOrder())
-                    .orElse(BigDecimal.ZERO);
+            // Get price of the selected color/size
+            BigDecimal price = inventoryService.priceOf(product, itemReq.getColor(), itemReq.getSize());
             
             OrderItem orderItem = OrderItem.builder()
                     .order(order)
@@ -308,31 +305,12 @@ public class OrderServiceImpl implements IOrderService {
         }
         // 10. Tạo Payment record cho COD/Bank Transfer (VNPay sẽ tạo trong callback)
         if (request.getPaymentMethod() != PaymentMethod.VNPAY) {
-            // 10.1. Giảm tồn kho ngay (thanh toán trực tiếp)
             for (OrderItemRequest itemReq : validatedItems) {
                 Product product = productMap.get(itemReq.getProductId());
-                int remainingQuantity = itemReq.getQuantity();
-                
-                // Deduct stock from available templates sequentially
-                for (ProductTemplate template : product.getTemplates()) {
-                    if (!template.getStatus() || template.getStockQuantity() <= 0 || remainingQuantity <= 0) {
-                        continue;
-                    }
-                    
-                    int deductAmount = Math.min(template.getStockQuantity(), remainingQuantity);
-                    template.setStockQuantity(template.getStockQuantity() - deductAmount);
-                    remainingQuantity -= deductAmount;
-                }
-                
-                // Validate all quantity was deducted
-                if (remainingQuantity > 0) {
-                    throw new BadRequestException(
-                        "Không đủ tồn kho để hoàn tất đơn hàng cho sản phẩm: " + product.getName()
-                    );
-                }
-                
-                productRepository.save(product);  // Cascade saves templates
+                inventoryService.deduct(product, itemReq.getColor(), itemReq.getSize(), itemReq.getQuantity());
             }
+            order.setStockDeducted(true);
+            orderRepository.save(order);
             
             // 10.2. Tạo Payment record với status SUCCESS (đã thanh toán)
             Payment payment = Payment.builder()
@@ -492,7 +470,7 @@ public class OrderServiceImpl implements IOrderService {
         log.info("Found {} orders for user {}", orders.size(), userId);
         
         return orders.stream()
-                .map(orderMapper::toOrderResponse)
+                .map(this::toCustomerOrderResponse)
                 .collect(Collectors. toList());
     }
     
@@ -511,7 +489,7 @@ public class OrderServiceImpl implements IOrderService {
         log.info("Found {} orders for user {} in page {}", 
                 orderPage.getContent().size(), userId, pageable.getPageNumber());
         
-        return orderPage. map(orderMapper:: toOrderResponse);
+        return orderPage.map(this::toCustomerOrderResponse);
     }
     
     @Override
@@ -528,7 +506,7 @@ public class OrderServiceImpl implements IOrderService {
         log.info("Found {} orders with status {} for user {}", orders.size(), status, userId);
         
         return orders.stream()
-                .map(orderMapper::toOrderResponse)
+                .map(this::toCustomerOrderResponse)
                 .collect(Collectors.toList());
     }
     
@@ -582,12 +560,10 @@ public class OrderServiceImpl implements IOrderService {
             throw new ForbiddenException("Bạn không có quyền hủy đơn hàng này");
         }
         
-        // 3. Kiểm tra trạng thái có thể hủy (Cho phép hủy khi PENDING hoặc CONFIRMED trước khi giao)
-        if (order.getStatus() != OrderStatus.PENDING && order.getStatus() != OrderStatus.CONFIRMED) {
+        if (order.getStatus() != OrderStatus.PENDING) {
             log.warn("Cannot cancel order {} with status {}", orderId, order.getStatus());
             throw new BadRequestException(
-                String.format("Không thể hủy đơn hàng ở trạng thái '%s'. Chỉ có thể hủy đơn hàng trước khi vận chuyển.", 
-                    getStatusDisplayName(order.getStatus()))
+                "Chỉ có thể hủy đơn khi đơn đang chờ admin xác nhận. Sau khi admin xác nhận thì không thể hủy."
             );
         }
         
@@ -606,12 +582,11 @@ public class OrderServiceImpl implements IOrderService {
             log.warn("Failed to save order status history for order {}: {}", orderId, e.getMessage());
         }
         
-        // 7. Hoàn lại tồn kho cho các sản phẩm trong đơn hàng
-        try {
+        if (Boolean.TRUE.equals(order.getStockDeducted())) {
             restoreProductStock(order);
+            order.setStockDeducted(false);
+            orderRepository.save(order);
             log.info("Product stock restored for cancelled order: {}", order.getOrderCode());
-        } catch (Exception e) {
-            log.error("Failed to restore stock for cancelled order {}: {}", orderId, e.getMessage());
         }
         
         log.info("Order {} successfully cancelled by user {}. Status changed from {} to {}", 
@@ -632,8 +607,7 @@ public class OrderServiceImpl implements IOrderService {
                 return false;
             }
             
-            // Có thể hủy khi PENDING hoặc CONFIRMED
-            boolean canCancel = order.getStatus() == OrderStatus.PENDING || order.getStatus() == OrderStatus.CONFIRMED;
+            boolean canCancel = order.getStatus() == OrderStatus.PENDING;
             
             log.info("Order {} can be cancelled: {}", orderId, canCancel);
             return canCancel;
@@ -652,8 +626,8 @@ public class OrderServiceImpl implements IOrderService {
         return switch (status) {
             case PENDING -> "Chờ xác nhận";
             case CONFIRMED -> "Đã xác nhận"; 
-            case SHIPPING -> "Đang giao hàng";
-            case DELIVERED -> "Đã giao hàng";
+            case SHIPPING -> "Đã giao";
+            case DELIVERED -> "Giao thành công";
             case CANCELLED -> "Đã hủy";
         };
     }
@@ -683,34 +657,21 @@ public class OrderServiceImpl implements IOrderService {
         
         for (OrderItem item : orderItems) {
             Product product = item.getProduct();
-            if (product != null && product.getTemplates() != null && !product.getTemplates().isEmpty()) {
-                int remainingToRestore = item.getQuantity();
-                
-                // Trả lại tồn kho cho các biến thể active trước
-                for (ProductTemplate template : product.getTemplates()) {
-                    if (remainingToRestore <= 0) break;
-                    if (template.getStatus() != null && template.getStatus()) {
-                        int currentStock = template.getStockQuantity() != null ? template.getStockQuantity() : 0;
-                        template.setStockQuantity(currentStock + remainingToRestore);
-                        log.info("Restored {} stock for product {} template SKU {}: {} -> {}", 
-                                remainingToRestore, product.getId(), template.getSku(), currentStock, template.getStockQuantity());
-                        remainingToRestore = 0;
-                    }
-                }
-                
-                // Nếu chưa trả hết (không tìm thấy active template), trả cho template đầu tiên
-                if (remainingToRestore > 0) {
-                    ProductTemplate template = product.getTemplates().get(0);
-                    int currentStock = template.getStockQuantity() != null ? template.getStockQuantity() : 0;
-                    template.setStockQuantity(currentStock + remainingToRestore);
-                    log.info("Restored remaining {} stock for fallback template SKU {}", remainingToRestore, template.getSku());
-                }
-                
-                productRepository.save(product);
-            } else {
-                log.warn("Product or product templates not found for order item: {}", item.getId());
+            if (product != null && item.getQuantity() != null) {
+                inventoryService.restore(product, item.getColor(), item.getSize(), item.getQuantity());
             }
         }
+    }
+
+    private OrderResponse toCustomerOrderResponse(Order order) {
+        OrderResponse response = orderMapper.toOrderResponse(order);
+        response.setCanCancel(order.getStatus() == OrderStatus.PENDING);
+        OrderReturn orderReturn = orderReturnRepository.findByOrderId(order.getId()).orElse(null);
+        boolean withinWindow = order.getCreatedAt() != null
+                && !order.getCreatedAt().plusDays(3).isBefore(LocalDateTime.now());
+        response.setCanReturn(order.getStatus() == OrderStatus.DELIVERED && withinWindow && orderReturn == null);
+        response.setReturnStatus(orderReturn == null ? null : orderReturn.getStatus().name());
+        return response;
     }
 
     

@@ -16,6 +16,7 @@ import com.utephonehub.backend.repository.OrderRepository;
 import com.utephonehub.backend.repository.OrderStatusHistoryRepository;
 import com.utephonehub.backend.repository.ProductRepository;
 import com.utephonehub.backend.service.IAdminOrderService;
+import com.utephonehub.backend.service.InventoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -40,6 +41,7 @@ public class AdminOrderServiceImpl implements IAdminOrderService {
 	private final OrderRepository orderRepository;
 	private final ProductRepository productRepository;
 	private final OrderStatusHistoryRepository orderStatusHistoryRepository;
+	private final InventoryService inventoryService;
 
 	@Override
 	@Transactional(readOnly = true)
@@ -164,14 +166,11 @@ public class AdminOrderServiceImpl implements IAdminOrderService {
 			log.warn("Failed to save order status history for order {}: {}", orderId, e.getMessage());
 		}
 
-		// Restore stock if cancelled by Admin
-		if (newStatus == OrderStatus.CANCELLED && oldStatus != OrderStatus.CANCELLED) {
-			try {
-				restoreProductStock(order);
-				log.info("Restored stock for order {} cancelled by Admin", order.getOrderCode());
-			} catch (Exception e) {
-				log.error("Failed to restore stock for order {} cancelled by Admin: {}", orderId, e.getMessage());
-			}
+		if (newStatus == OrderStatus.CANCELLED && oldStatus == OrderStatus.PENDING
+				&& Boolean.TRUE.equals(order.getStockDeducted())) {
+			restoreProductStock(order);
+			order.setStockDeducted(false);
+			log.info("Restored stock for order {} cancelled by Admin before confirmation", order.getOrderCode());
 		}
 
 		// Save order
@@ -189,26 +188,8 @@ public class AdminOrderServiceImpl implements IAdminOrderService {
 		}
 
 		for (OrderItem item : orderItems) {
-			Product product = item.getProduct();
-			if (product != null && product.getTemplates() != null && !product.getTemplates().isEmpty()) {
-				int remainingToRestore = item.getQuantity();
-
-				for (ProductTemplate template : product.getTemplates()) {
-					if (remainingToRestore <= 0) break;
-					if (template.getStatus() != null && template.getStatus()) {
-						int currentStock = template.getStockQuantity() != null ? template.getStockQuantity() : 0;
-						template.setStockQuantity(currentStock + remainingToRestore);
-						remainingToRestore = 0;
-					}
-				}
-
-				if (remainingToRestore > 0) {
-					ProductTemplate template = product.getTemplates().get(0);
-					int currentStock = template.getStockQuantity() != null ? template.getStockQuantity() : 0;
-					template.setStockQuantity(currentStock + remainingToRestore);
-				}
-
-				productRepository.save(product);
+			if (item.getProduct() != null && item.getQuantity() != null) {
+				inventoryService.restore(item.getProduct(), item.getColor(), item.getSize(), item.getQuantity());
 			}
 		}
 	}
@@ -309,13 +290,11 @@ public class AdminOrderServiceImpl implements IAdminOrderService {
 				order.setUpdatedAt(LocalDateTime.now());
 
 				// ✅ FIX Bug 6: Restore stock when bulk cancelling orders
-				if (newStatus == OrderStatus.CANCELLED && oldStatus != OrderStatus.CANCELLED) {
-					try {
-						restoreProductStock(order);
-						log.info("Restored stock for bulk-cancelled order {}", order.getOrderCode());
-					} catch (Exception e) {
-						log.error("Failed to restore stock for bulk-cancelled order {}: {}", order.getId(), e.getMessage());
-					}
+				if (newStatus == OrderStatus.CANCELLED && oldStatus == OrderStatus.PENDING
+						&& Boolean.TRUE.equals(order.getStockDeducted())) {
+					restoreProductStock(order);
+					order.setStockDeducted(false);
+					log.info("Restored stock for bulk-cancelled order {}", order.getOrderCode());
 				}
 			} else {
 				log.warn("Skipping invalid transition for order {}:  {} -> {}", order.getId(), order.getStatus(),
@@ -371,7 +350,7 @@ public class AdminOrderServiceImpl implements IAdminOrderService {
 	private List<OrderStatus> getValidNextStatuses(OrderStatus currentStatus) {
 		return switch (currentStatus) {
 		case PENDING -> List.of(OrderStatus.CONFIRMED, OrderStatus.CANCELLED);
-		case CONFIRMED -> List.of(OrderStatus.SHIPPING, OrderStatus.CANCELLED);
+		case CONFIRMED -> List.of(OrderStatus.SHIPPING);
 		case SHIPPING -> List.of(OrderStatus.DELIVERED);
 		case DELIVERED, CANCELLED -> List.of(); // No further transitions
 		};

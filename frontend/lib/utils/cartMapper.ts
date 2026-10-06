@@ -73,6 +73,9 @@ export function mapBackendCartItem(item: unknown): CartItem {
     quantity: Number(obj.quantity ?? 0),
     color: typeof obj.color === 'string' ? obj.color : undefined,
     size: typeof obj.size === 'string' ? obj.size : (typeof obj.storage === 'string' ? obj.storage : undefined),
+    stockQuantity: typeof obj.stockQuantity === 'number'
+      ? obj.stockQuantity
+      : (typeof obj.stockQuantity === 'string' ? Number(obj.stockQuantity) : undefined),
   };
 }
 

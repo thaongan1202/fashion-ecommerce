@@ -44,5 +44,8 @@ public class OrderResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private List<OrderItemResponse> items;
+    private Boolean canCancel;
+    private Boolean canReturn;
+    private String returnStatus;
 
 }

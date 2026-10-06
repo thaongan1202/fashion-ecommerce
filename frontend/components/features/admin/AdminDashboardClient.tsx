@@ -18,6 +18,7 @@ import {
     Ticket,
     FileText,
     Star,
+    Undo2,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,7 @@ import {
     BrandManagement,
     AdminOrderDetailModal,
     ReviewManagement,
+    ReturnManagement,
 } from "@/components/features/dashboard";
 import {
     PromotionsTable,
@@ -47,7 +49,8 @@ type TabType =
     | "promotions"
     | "templates"
     | "users"
-    | "reviews";
+    | "reviews"
+    | "returns";
 
 export default function AdminDashboardClient() {
     const router = useRouter();
@@ -72,6 +75,7 @@ export default function AdminDashboardClient() {
         { id: "templates" as TabType, label: "Templates", icon: FileText },
         { id: "users" as TabType, label: "Người dùng", icon: Users },
         { id: "reviews" as TabType, label: "Đánh giá sản phẩm", icon: Star },
+        { id: "returns" as TabType, label: "Hoàn hàng", icon: Undo2 },
     ];
 
     useEffect(() => {
@@ -163,6 +167,7 @@ export default function AdminDashboardClient() {
                             {activeTab === "templates" && "Quản lý Templates"}
                             {activeTab === "users" && "Quản lý người dùng"}
                             {activeTab === "reviews" && "Đánh giá sản phẩm"}
+                            {activeTab === "returns" && "Hoàn hàng"}
                         </h2>
                     </div>
                     <div className="flex items-center gap-3">
@@ -171,6 +176,7 @@ export default function AdminDashboardClient() {
                             <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full"></span>
                         </button>
                         <div className="hidden sm:flex items-center gap-2 text-sm">
+                            <LiveClock />
                             <span className="text-muted-foreground">Xin chào,</span>
                             <span className="font-medium text-foreground">
                                 {user.fullName}
@@ -226,8 +232,24 @@ export default function AdminDashboardClient() {
 
                     {/* Product Reviews */}
                     {activeTab === "reviews" && <ReviewManagement />}
+                    {activeTab === "returns" && <ReturnManagement />}
                 </div>
             </div>
         </div>
     );
+}
+
+function LiveClock() {
+    const [now, setNow] = useState("");
+
+    useEffect(() => {
+        const tick = () => {
+            setNow(new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }));
+        };
+        tick();
+        const timer = window.setInterval(tick, 1000);
+        return () => window.clearInterval(timer);
+    }, []);
+
+    return <span className="font-medium text-foreground">{now}</span>;
 }

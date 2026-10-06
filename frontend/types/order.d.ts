@@ -37,6 +37,9 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
   items?: OrderItem[];
+  canCancel?: boolean;
+  canReturn?: boolean;
+  returnStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | null;
   // Frontend computed fields
   customer?: string;
   total?: number;
@@ -84,8 +87,37 @@ export interface OrderResponse {
   createdAt: string;
   updatedAt: string;
   items?: OrderItem[];
+  canCancel?: boolean;
+  canReturn?: boolean;
+  returnStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | null;
 }
 
+export interface OrderReturn {
+  id: number;
+  orderId: number;
+  orderCode: string;
+  customerName?: string;
+  customerEmail?: string;
+  reason: string;
+  evidenceUrl: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  adminNote?: string | null;
+  refundAmount?: number;
+  orderAmount?: number;
+  orderCreatedAt?: string;
+  createdAt: string;
+  reviewedAt?: string | null;
+}
+
+export interface ReturnStatistics {
+  pendingCount: number;
+  approvedCount: number;
+  rejectedCount: number;
+  refundedOrderCount: number;
+  totalRefundAmount: number;
+  grossRevenue: number;
+  revenueAfterRefund: number;
+}
 export interface RecentOrderResponse {
   orderId: number;
   orderCode: string;

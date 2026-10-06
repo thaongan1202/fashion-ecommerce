@@ -18,6 +18,7 @@ import type {
   ProductResponse,
   Order,
   OrderResponse,
+  OrderReturn,
   RecentOrderResponse,
   DashboardOverviewResponse,
   TopProductResponse,
@@ -206,8 +207,11 @@ async function fetchAPI<T>(
   }
 
   const headers = new Headers(options.headers);
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
 
-  if (!headers.has("Content-Type")) {
+  if (isFormData) {
+    headers.delete("Content-Type");
+  } else if (!headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -227,7 +231,11 @@ async function fetchAPI<T>(
     if (process.env.NODE_ENV === 'development') {
       console.log(`[fetchAPI] ${options.method || 'GET'} ${url}`, {
         hasToken: !!token,
-        body: options.body ? JSON.parse(options.body as string) : undefined,
+        body: isFormData
+          ? "[form-data]"
+          : options.body && typeof options.body === "string"
+            ? JSON.parse(options.body)
+            : undefined,
       });
     }
 
@@ -315,10 +323,34 @@ export const authAPI = {
     });
   },
 
-  register: async (data: RegisterRequest): Promise<ApiResponse<User>> => {
-    return fetchAPI<User>("/auth/register", {
+  register: async (data: RegisterRequest): Promise<ApiResponse<{
+    email: string;
+    expiresInSeconds: number;
+    maxAttempts: number;
+    remainingAttempts: number;
+  }>> => {
+    return fetchAPI("/auth/register", {
       method: "POST",
       body: JSON.stringify(data),
+    });
+  },
+
+  verifyRegistrationOtp: async (data: { email: string; otp: string }): Promise<ApiResponse<User>> => {
+    return fetchAPI<User>("/auth/verify-email", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  resendRegistrationOtp: async (email: string): Promise<ApiResponse<{
+    email: string;
+    expiresInSeconds: number;
+    maxAttempts: number;
+    remainingAttempts: number;
+  }>> => {
+    return fetchAPI("/auth/register/resend-otp", {
+      method: "POST",
+      body: JSON.stringify({ email }),
     });
   },
 
@@ -625,6 +657,22 @@ export const orderAPI = {
     });
   },
 
+  cancel: async (orderId: number): Promise<ApiResponse<string>> => {
+    return fetchAPI<string>(`/orders/${orderId}/cancel`, {
+      method: "POST",
+    });
+  },
+
+  createReturn: async (orderId: number, reason: string, evidence: File): Promise<ApiResponse<OrderReturn>> => {
+    const formData = new FormData();
+    formData.append("reason", reason);
+    formData.append("evidence", evidence);
+    return fetchAPI<OrderReturn>(`/orders/${orderId}/returns`, {
+      method: "POST",
+      body: formData,
+    });
+  },
+
   // Get recent orders (for admin dashboard)
   // This endpoint exists: GET /api/v1/admin/dashboard/recent-orders?limit={limit}
   getRecentOrders: async (
@@ -636,6 +684,25 @@ export const orderAPI = {
         method: "GET",
       }
     );
+  },
+};
+
+export const returnAPI = {
+  list: async (status?: string): Promise<ApiResponse<{ content: OrderReturn[] }>> => {
+    const query = status && status !== "ALL" ? `?status=${status}&size=50` : "?size=50";
+    return fetchAPI<{ content: OrderReturn[] }>(`/admin/returns${query}`, { method: "GET" });
+  },
+  statistics: async (): Promise<ApiResponse<import("@/types").ReturnStatistics>> => {
+    return fetchAPI(`/admin/returns/statistics`, { method: "GET" });
+  },
+  approve: async (returnId: number): Promise<ApiResponse<OrderReturn>> => {
+    return fetchAPI<OrderReturn>(`/admin/returns/${returnId}/approve`, { method: "POST" });
+  },
+  reject: async (returnId: number, adminNote: string): Promise<ApiResponse<OrderReturn>> => {
+    return fetchAPI<OrderReturn>(`/admin/returns/${returnId}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ adminNote }),
+    });
   },
 };
 

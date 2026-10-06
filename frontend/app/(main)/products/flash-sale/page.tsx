@@ -16,42 +16,32 @@ const SORT_OPTIONS = [
 
 // Countdown Timer Component
 function CountdownTimer() {
-  const [timeLeft, setTimeLeft] = useState({ hours: 2, minutes: 45, seconds: 30 });
+  const [label, setLabel] = useState('00:00:00');
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft(prev => {
-        let { hours, minutes, seconds } = prev;
-        if (seconds > 0) {
-          seconds--;
-        } else if (minutes > 0) {
-          minutes--;
-          seconds = 59;
-        } else if (hours > 0) {
-          hours--;
-          minutes = 59;
-          seconds = 59;
-        } else {
-          hours = 2; minutes = 45; seconds = 30; // Reset
-        }
-        return { hours, minutes, seconds };
-      });
-    }, 1000);
+    const tick = () => {
+      const now = new Date();
+      const vietnamNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+      const end = new Date(vietnamNow);
+      end.setHours(23, 59, 59, 0);
+      const diff = Math.max(0, end.getTime() - vietnamNow.getTime());
+      const hours = Math.floor(diff / 3600000);
+      const minutes = Math.floor((diff % 3600000) / 60000);
+      const seconds = Math.floor((diff % 60000) / 1000);
+      const pad = (value: number) => String(value).padStart(2, '0');
+      setLabel(`${pad(hours)}:${pad(minutes)}:${pad(seconds)}`);
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
   }, []);
-
-  const formatTime = (num: number) => String(num).padStart(2, '0');
 
   return (
     <div className="flex items-center gap-2 bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-xl px-4 py-3 shadow-lg animate-pulse-slow">
       <Clock className="w-5 h-5" />
       <span className="text-sm font-medium mr-2 hidden sm:inline">Kết thúc sau:</span>
       <div className="flex items-center gap-1 font-mono font-bold text-lg">
-        <span className="bg-white/20 rounded px-2 py-1">{formatTime(timeLeft.hours)}</span>
-        <span>:</span>
-        <span className="bg-white/20 rounded px-2 py-1">{formatTime(timeLeft.minutes)}</span>
-        <span>:</span>
-        <span className="bg-white/20 rounded px-2 py-1">{formatTime(timeLeft.seconds)}</span>
+        <span className="bg-white/20 rounded px-2 py-1">{label}</span>
       </div>
     </div>
   );

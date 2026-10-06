@@ -2,6 +2,7 @@ package com.utephonehub.backend.service;
 
 import com.utephonehub.backend.dto.request.auth.*;
 import com.utephonehub.backend.dto.response.auth.AuthResponse;
+import com.utephonehub.backend.dto.response.auth.RegistrationOtpResponse;
 import com.utephonehub.backend.dto.response.user.UserResponse;
 
 /**
@@ -10,11 +11,14 @@ import com.utephonehub.backend.dto.response.user.UserResponse;
 public interface IAuthService {
     
     /**
-     * Register new customer account
-     * @param request Registration request
-     * @return UserResponse
+     * Bắt đầu đăng ký: gửi OTP xác thực email, chưa tạo tài khoản.
      */
-    UserResponse register(RegisterRequest request);
+    RegistrationOtpResponse register(RegisterRequest request);
+
+    /**
+     * Cấp lại OTP đăng ký sau khi mã hiện tại hết hạn.
+     */
+    RegistrationOtpResponse resendRegistrationOtp(ForgotPasswordRequest request);
     
     /**
      * Register new admin account
@@ -56,8 +60,7 @@ public interface IAuthService {
     void verifyOtpAndResetPassword(VerifyOtpRequest request);
 
     /**
-     * Verify registration email OTP (for email verification)
-     * @param request Verify registration OTP request
+     * Xác thực OTP và tạo tài khoản khách hàng.
      */
-    void verifyRegistrationOtp(VerifyRegistrationOtpRequest request);
+    UserResponse verifyRegistrationOtp(VerifyRegistrationOtpRequest request);
 }

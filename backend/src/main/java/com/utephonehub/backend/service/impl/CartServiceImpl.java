@@ -17,6 +17,7 @@ import com.utephonehub.backend.repository.ProductRepository;
 import com.utephonehub.backend.repository.UserRepository;
 import com.utephonehub.backend.service.ICartService;
 import com.utephonehub.backend.service.IGuestCartService;
+import com.utephonehub.backend.service.InventoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.StaleObjectStateException;
@@ -51,6 +52,7 @@ public class CartServiceImpl implements ICartService {
     private final com.utephonehub.backend.repository.OrderRepository orderRepository;
     private final com.utephonehub.backend.mapper.CartMapper cartMapper;
     private final IGuestCartService guestCartService;
+    private final InventoryService inventoryService;
 
     private static final int MAX_QUANTITY_PER_PRODUCT = 10;
     private static final int BATCH_DELETE_SIZE = 50;
@@ -128,7 +130,9 @@ public class CartServiceImpl implements ICartService {
         log.info("Adding product {} to cart for user: {}", request.getProductId(), userId);
 
         try {
-            // Validate initial quantity
+            if (request.getQuantity() == null || request.getQuantity() < 1) {
+                throw new BadRequestException("Số lượng không được âm và phải lớn hơn hoặc bằng 1");
+            }
             if (request.getQuantity() > MAX_QUANTITY_PER_PRODUCT) {
                 throw new MaxQuantityExceededException(MAX_QUANTITY_PER_PRODUCT, request.getQuantity());
             }
@@ -146,12 +150,13 @@ public class CartServiceImpl implements ICartService {
             }
 
             // Check stock availability
-            if (getTotalStockQuantity(product) < request.getQuantity()) {
+            int variantStock = inventoryService.availableStock(product, request.getColor(), request.getSize());
+            if (variantStock < request.getQuantity()) {
                 throw new OutOfStockException(
                     product.getId(),
                     product.getName(),
                     request.getQuantity(),
-                    getTotalStockQuantity(product)
+                    variantStock
                 );
             }
 
@@ -175,13 +180,6 @@ public class CartServiceImpl implements ICartService {
                     .filter(item -> sameVariant(item, color, size))
                     .findFirst();
 
-            // Số lượng của các dòng khác (màu/size khác) cùng sản phẩm - dùng để kiểm tra tồn kho tổng
-            final int otherLinesQty = cart.getItems().stream()
-                    .filter(item -> item.getProduct().getId().equals(product.getId()))
-                    .filter(item -> existingItem.isEmpty() || item != existingItem.get())
-                    .mapToInt(CartItem::getQuantity)
-                    .sum();
-
             if (existingItem.isPresent()) {
                 // Update existing item quantity
                 CartItem item = existingItem.get();
@@ -192,14 +190,13 @@ public class CartServiceImpl implements ICartService {
                     throw new MaxQuantityExceededException(MAX_QUANTITY_PER_PRODUCT, newQuantity);
                 }
 
-                // Then check stock availability (tồn kho tính trên toàn sản phẩm)
-                int totalStock = getTotalStockQuantity(product);
-                if (otherLinesQty + newQuantity > totalStock) {
+                // Then check stock availability of the selected variant
+                if (newQuantity > variantStock) {
                     throw new OutOfStockException(
                         product.getId(),
                         product.getName(),
                         newQuantity,
-                        Math.max(0, totalStock - otherLinesQty)
+                        variantStock
                     );
                 }
 
@@ -217,14 +214,13 @@ public class CartServiceImpl implements ICartService {
                     throw new MaxQuantityExceededException(MAX_QUANTITY_PER_PRODUCT, quantity);
                 }
 
-                // Then check stock availability (tồn kho tính trên toàn sản phẩm)
-                int totalStock = getTotalStockQuantity(product);
-                if (otherLinesQty + quantity > totalStock) {
+                // Then check stock availability of the selected variant
+                if (quantity > variantStock) {
                     throw new OutOfStockException(
                         product.getId(),
                         product.getName(),
                         quantity,
-                        Math.max(0, totalStock - otherLinesQty)
+                        variantStock
                     );
                 }
 
@@ -272,6 +268,9 @@ public class CartServiceImpl implements ICartService {
             }
 
             // If quantity is 0, remove item
+            if (request.getQuantity() != null && request.getQuantity() < 0) {
+                throw new BadRequestException("Số lượng không được âm");
+            }
             if (request.getQuantity() == 0) {
                 return removeCartItem(userId, cartItemId);
             }
@@ -283,17 +282,13 @@ public class CartServiceImpl implements ICartService {
 
             // Then check stock availability (tồn kho tính trên toàn sản phẩm, gồm cả các dòng màu/size khác)
             Product product = cartItem.getProduct();
-            final int otherLinesQty = cartItem.getCart().getItems().stream()
-                    .filter(i -> i != cartItem && i.getProduct().getId().equals(product.getId()))
-                    .mapToInt(CartItem::getQuantity)
-                    .sum();
-            int totalStock = getTotalStockQuantity(product);
-            if (otherLinesQty + request.getQuantity() > totalStock) {
+            int variantStock = inventoryService.availableStock(product, cartItem.getColor(), cartItem.getSize());
+            if (request.getQuantity() > variantStock) {
                 throw new OutOfStockException(
                     product.getId(),
                     product.getName(),
                     request.getQuantity(),
-                    Math.max(0, totalStock - otherLinesQty)
+                    variantStock
                 );
             }
 
@@ -454,8 +449,15 @@ public class CartServiceImpl implements ICartService {
                 }
 
                 // Check stock availability
-                int totalStock = getTotalStockQuantity(product);
-                if (totalStock < guestItem.getQuantity()) {
+                int variantStock;
+                try {
+                    variantStock = inventoryService.availableStock(product, guestItem.getColor(), guestItem.getSize());
+                } catch (Exception ex) {
+                    log.warn("Product {} variant not found, skipping", guestItem.getProductId());
+                    skippedCount++;
+                    continue;
+                }
+                if (variantStock < guestItem.getQuantity()) {
                     log.warn("Product {} out of stock, skipping", guestItem.getProductId());
                     skippedCount++;
                     continue;
@@ -468,11 +470,6 @@ public class CartServiceImpl implements ICartService {
                         .filter(item -> item.getProduct().getId().equals(product.getId()))
                         .filter(item -> sameVariant(item, color, size))
                         .findFirst();
-                final int otherLinesQty = cart.getItems().stream()
-                        .filter(item -> item.getProduct().getId().equals(product.getId()))
-                        .filter(item -> existingItem.isEmpty() || item != existingItem.get())
-                        .mapToInt(CartItem::getQuantity)
-                        .sum();
 
                 if (existingItem.isPresent()) {
                     // Merge quantity if already exists
@@ -482,7 +479,7 @@ public class CartServiceImpl implements ICartService {
                         MAX_QUANTITY_PER_PRODUCT
                     );
                     
-                    if (otherLinesQty + newQuantity <= getTotalStockQuantity(product)) {
+                    if (newQuantity <= inventoryService.availableStock(product, color, size)) {
                         item.setQuantity(newQuantity);
                         cartItemRepository.save(item);
                         mergedCount++;
@@ -492,7 +489,7 @@ public class CartServiceImpl implements ICartService {
                 } else {
                     // Add new item if not exists
                     int newQty = Math.min(guestItem.getQuantity(), MAX_QUANTITY_PER_PRODUCT);
-                    if (otherLinesQty + newQty > getTotalStockQuantity(product)) {
+                    if (newQty > inventoryService.availableStock(product, color, size)) {
                         skippedCount++;
                         continue;
                     }

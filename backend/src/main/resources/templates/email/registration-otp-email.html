@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mã OTP xác thực email - UTE Fashion Hub</title>
+</head>
+
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; background-color: #f9fafb;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f9fafb;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                <table role="presentation"
+                    style="max-width: 600px; width: 100%; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.07);">
+                    <tr>
+                        <td
+                            style="padding: 32px 40px; text-align: center; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-radius: 12px 12px 0 0;">
+                            <h1 style="margin: 0; color: #f6c343; font-size: 28px; font-weight: bold;">UTE Fashion Hub</h1>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 40px;">
+                            <h2 style="margin: 0 0 16px; color: #0f172a; font-size: 22px; text-align: center;">
+                                Xác thực email đăng ký</h2>
+                            <p style="margin: 0 0 20px; color: #475569; font-size: 16px; line-height: 1.7; text-align: center;">
+                                Xin chào <strong th:text="${fullName}">bạn</strong>, hãy nhập mã OTP dưới đây để xác nhận
+                                email là thật và hoàn tất đăng ký.
+                            </p>
+                            <table role="presentation" style="width: 100%; margin: 24px 0;">
+                                <tr>
+                                    <td align="center"
+                                        style="padding: 24px; background: #fef3c7; border: 2px solid #f6c343; border-radius: 12px;">
+                                        <div style="font-size: 40px; font-weight: bold; color: #0f172a; letter-spacing: 10px; font-family: 'Courier New', monospace;"
+                                            th:text="${otp}">123456</div>
+                                    </td>
+                                </tr>
+                            </table>
+                            <p style="margin: 0; color: #ef4444; font-size: 14px; font-weight: 600; text-align: center;">
+                                Mã OTP có hiệu lực trong 60 giây. Nhập sai tối đa 5 lần.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+
+</html>

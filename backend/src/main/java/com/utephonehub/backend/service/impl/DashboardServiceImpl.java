@@ -14,8 +14,10 @@ import com.utephonehub.backend.entity.User;
 import com.utephonehub.backend.enums.DashboardPeriod;
 import com.utephonehub.backend.enums.OrderStatus;
 import com.utephonehub.backend.enums.RegistrationPeriod;
+import com.utephonehub.backend.enums.ReturnStatus;
 import com.utephonehub.backend.repository.OrderItemRepository;
 import com.utephonehub.backend.repository.OrderRepository;
+import com.utephonehub.backend.repository.OrderReturnRepository;
 import com.utephonehub.backend.repository.ProductRepository;
 import com.utephonehub.backend.repository.UserRepository;
 import com.utephonehub.backend.service.IDashboardService;
@@ -48,13 +50,24 @@ public class DashboardServiceImpl implements IDashboardService {
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
     private final OrderItemRepository orderItemRepository;
+    private final OrderReturnRepository orderReturnRepository;
 
     @Override
     public DashboardOverviewResponse getOverview() {
         log.info("Fetching dashboard overview statistics");
 
-        // Calculate total revenue from DELIVERED orders (completed orders)
-        BigDecimal totalRevenue = orderRepository.calculateTotalRevenueByStatus(OrderStatus.DELIVERED);
+        BigDecimal grossRevenue = orderRepository.calculateTotalRevenueByStatus(OrderStatus.DELIVERED);
+        if (grossRevenue == null) {
+            grossRevenue = BigDecimal.ZERO;
+        }
+        BigDecimal refunded = orderReturnRepository.sumApprovedRefundAmount();
+        if (refunded == null) {
+            refunded = BigDecimal.ZERO;
+        }
+        BigDecimal totalRevenue = grossRevenue.subtract(refunded);
+        if (totalRevenue.compareTo(BigDecimal.ZERO) < 0) {
+            totalRevenue = BigDecimal.ZERO;
+        }
         
         // Count total orders
         long totalOrders = orderRepository.count();
@@ -111,10 +124,24 @@ public class DashboardServiceImpl implements IDashboardService {
         List<BigDecimal> values = new ArrayList<>();
         DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd/MM");
 
+        List<com.utephonehub.backend.entity.OrderReturn> refunds = orderReturnRepository
+                .findByStatusAndReviewedAtBetween(ReturnStatus.APPROVED, startDateTime, endDateTime);
+        Map<LocalDate, BigDecimal> refundByDate = refunds.stream()
+                .filter(item -> item.getReviewedAt() != null && item.getRefundAmount() != null)
+                .collect(Collectors.groupingBy(
+                        item -> item.getReviewedAt().toLocalDate(),
+                        Collectors.reducing(BigDecimal.ZERO, com.utephonehub.backend.entity.OrderReturn::getRefundAmount, BigDecimal::add)
+                ));
+
         LocalDate currentDate = startDate;
         while (!currentDate.isAfter(endDate)) {
             labels.add(currentDate.format(dateFormatter));
-            values.add(revenueByDate.getOrDefault(currentDate, BigDecimal.ZERO));
+            BigDecimal dayRevenue = revenueByDate.getOrDefault(currentDate, BigDecimal.ZERO)
+                    .subtract(refundByDate.getOrDefault(currentDate, BigDecimal.ZERO));
+            if (dayRevenue.compareTo(BigDecimal.ZERO) < 0) {
+                dayRevenue = BigDecimal.ZERO;
+            }
+            values.add(dayRevenue);
             currentDate = currentDate.plusDays(1);
         }
 

@@ -19,6 +19,7 @@ import com.utephonehub.backend.repository.PaymentCallbackLogRepository;
 import com.utephonehub.backend.repository.PaymentRepository;
 import com.utephonehub.backend.repository.ProductRepository;
 import com.utephonehub.backend.service.IEmailService;
+import com.utephonehub.backend.service.InventoryService;
 import com.utephonehub.backend.service.IVNPayService;
 import com.utephonehub.backend.util.VNPayUtil;
 import jakarta.servlet.http.HttpServletRequest;
@@ -48,6 +49,7 @@ public class VNPayServiceImpl implements IVNPayService {
     private final ProductRepository productRepository;
     private final PaymentMapper paymentMapper;
     private final IEmailService emailService;
+    private final InventoryService inventoryService;
     private final ObjectMapper objectMapper = new ObjectMapper();
     
     @Override
@@ -231,8 +233,11 @@ public class VNPayServiceImpl implements IVNPayService {
         }
         
         // 8. CHỈ XỬ LÝ NÊU ĐƠN HÀNG CHƯA ĐƯỢC CONFIRMED (Tránh trừ tồn kho 2 lần)
-        if (order.getStatus() == OrderStatus.CONFIRMED) {
-            log.info("Order {} already confirmed. Skipping payment processing to avoid duplicate stock deduction.", order.getOrderCode());
+        if (Boolean.TRUE.equals(order.getStockDeducted())
+                || order.getStatus() == OrderStatus.CONFIRMED
+                || order.getStatus() == OrderStatus.SHIPPING
+                || order.getStatus() == OrderStatus.DELIVERED) {
+            log.info("Order {} already processed. Skipping duplicate stock deduction.", order.getOrderCode());
             // Chỉ cập nhật payment record nếu chưa có transaction ID
             if (payment.getTransactionId() == null || payment.getTransactionId().isEmpty()) {
                 payment.setTransactionId(vnpTransactionNo);
@@ -250,42 +255,29 @@ public class VNPayServiceImpl implements IVNPayService {
             // Stock is at ProductTemplate level, calculate total available stock per product
             boolean allStockAvailable = true;
             for (var orderItem : order.getItems()) {
-                var product = orderItem.getProduct();
-                int totalAvailableStock = product.getTemplates().stream()
-                        .filter(t -> t.getStatus() != null && t.getStatus())
-                        .mapToInt(t -> t.getStockQuantity() != null ? t.getStockQuantity() : 0)
-                        .sum();
-                if (totalAvailableStock < orderItem.getQuantity()) {
+                try {
+                    int available = inventoryService.availableStock(
+                            orderItem.getProduct(), orderItem.getColor(), orderItem.getSize());
+                    if (available < orderItem.getQuantity()) {
+                        allStockAvailable = false;
+                        break;
+                    }
+                } catch (Exception ex) {
                     allStockAvailable = false;
                     break;
                 }
             }
             
             if (allStockAvailable) {
-                order.setStatus(OrderStatus.CONFIRMED);
-                // Reduce stock from templates sequentially (same pattern as OrderServiceImpl)
+                order.setStatus(OrderStatus.PENDING);
                 for (var orderItem : order.getItems()) {
-                    var product = orderItem.getProduct();
-                    int remainingQuantity = orderItem.getQuantity();
-                    
-                    // Deduct stock from available templates sequentially
-                    for (var template : product.getTemplates()) {
-                        if (template.getStatus() == null || !template.getStatus() 
-                                || template.getStockQuantity() == null || template.getStockQuantity() <= 0 
-                                || remainingQuantity <= 0) {
-                            continue;
-                        }
-                        
-                        int deductAmount = Math.min(template.getStockQuantity(), remainingQuantity);
-                        int oldStock = template.getStockQuantity();
-                        template.setStockQuantity(oldStock - deductAmount);
-                        remainingQuantity -= deductAmount;
-                        log.info("Reduced stock for product {} template {}: {} -> {}", 
-                            product.getId(), template.getSku(), oldStock, template.getStockQuantity());
-                    }
-                    
-                    productRepository.save(product); // Cascade saves templates
+                    inventoryService.deduct(
+                            orderItem.getProduct(),
+                            orderItem.getColor(),
+                            orderItem.getSize(),
+                            orderItem.getQuantity());
                 }
+                order.setStockDeducted(true);
                 log.info("Payment successful and stock reduced for order: {}", order.getOrderCode());
                 
                 // Send payment success email (async, không block payment flow)

@@ -43,6 +43,7 @@ import { useWishlistStore } from '@/store/wishlistStore';
 import { useCartActions } from '@/hooks/useCartActions';
 import type { CartItemDetails } from '@/hooks/useCartActions';
 import { toast } from 'sonner';
+import { isApparelProduct, isShoeProduct, suggestSize } from '@/lib/size-recommendation';
 
 export default function ProductDetailPage() {
   const params = useParams();
@@ -68,6 +69,9 @@ export default function ProductDetailPage() {
   const [selectedSize, setSelectedSize] = useState('');
 
   const [quantity, setQuantity] = useState(1);
+  const [heightCm, setHeightCm] = useState('');
+  const [weightKg, setWeightKg] = useState('');
+  const [sizeSuggestion, setSizeSuggestion] = useState('');
 
   // Cart and Wishlist
   const { addToCartWithDetails, buyNowWithDetails } = useCartActions();
@@ -483,6 +487,8 @@ export default function ProductDetailPage() {
       color: selectedVariantData.color,
 
       size: selectedVariantData.size,
+
+      stockQuantity: currentStock,
     };
 
     addToCartWithDetails(details);
@@ -529,6 +535,8 @@ export default function ProductDetailPage() {
       color: selectedVariantData.color,
 
       size: selectedVariantData.size,
+
+      stockQuantity: currentStock,
     };
 
     buyNowWithDetails(details);
@@ -856,6 +864,12 @@ export default function ProductDetailPage() {
 
               </div>
 
+              {product.brand?.description && (
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  {product.brand.description}
+                </p>
+              )}
+
               <h1 className="text-3xl lg:text-4xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
                 {product.name}
               </h1>
@@ -1109,6 +1123,62 @@ export default function ProductDetailPage() {
 
                       </select>
 
+                      {(isApparelProduct(product.category?.name, sizes) || isShoeProduct(product.category?.name, sizes)) && (
+                        <div className="space-y-2 rounded-xl border border-dashed p-3">
+                          <p className="text-sm font-medium">Gợi ý size theo chiều cao và cân nặng</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              type="number"
+                              min={1}
+                              value={heightCm}
+                              onChange={(event) => setHeightCm(event.target.value)}
+                              placeholder="Chiều cao (cm)"
+                              className="h-10 rounded-lg border bg-background px-3 text-sm"
+                            />
+                            <input
+                              type="number"
+                              min={1}
+                              value={weightKg}
+                              onChange={(event) => setWeightKg(event.target.value)}
+                              placeholder="Cân nặng (kg)"
+                              className="h-10 rounded-lg border bg-background px-3 text-sm"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            className="w-full"
+                            onClick={() => {
+                              const height = Number(heightCm);
+                              const weight = Number(weightKg);
+                              if (!Number.isFinite(height) || !Number.isFinite(weight) || height <= 0 || weight <= 0) {
+                                toast.error('Chiều cao và cân nặng phải là số dương');
+                                return;
+                              }
+                              const suggested = suggestSize({
+                                categoryName: product.category?.name,
+                                heightCm: height,
+                                weightKg: weight,
+                                availableSizes: sizes,
+                              });
+                              if (!suggested) {
+                                toast.error('Không đủ dữ liệu để đề xuất size');
+                                return;
+                              }
+                              setSizeSuggestion(suggested);
+                              handleSizeChange(suggested);
+                            }}
+                          >
+                            Đề xuất size
+                          </Button>
+                          {sizeSuggestion && (
+                            <p className="text-sm font-semibold text-primary">
+                              Size (kích thước) đề xuất phù hợp : {sizeSuggestion}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
                     </div>
                   )}
 
@@ -1204,11 +1274,27 @@ export default function ProductDetailPage() {
                 </Button>
 
                 <div className="flex-1 text-center">
-
-                  <span className="text-2xl font-bold">
-                    {quantity}
-                  </span>
-
+                  <input
+                    type="number"
+                    min={1}
+                    max={Math.max(currentStock, 1)}
+                    value={quantity}
+                    onChange={(event) => {
+                      const next = Number(event.target.value);
+                      if (!Number.isFinite(next) || next < 1) {
+                        toast.error('Số lượng không được âm và phải từ 1 trở lên');
+                        setQuantity(1);
+                        return;
+                      }
+                      if (next > currentStock) {
+                        toast.error(`Không được vượt quá hàng còn. Kho chỉ còn ${currentStock}`);
+                        setQuantity(Math.max(currentStock, 1));
+                        return;
+                      }
+                      setQuantity(Math.floor(next));
+                    }}
+                    className="w-full bg-transparent text-center text-2xl font-bold outline-none"
+                  />
                 </div>
 
                 <Button

@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Edit, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -32,6 +32,18 @@ export function CustomerProfile({ user }: CustomerProfileProps) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    userAPI.getMe().then((response) => {
+      if (active && response.success && response.data) {
+        setUser(response.data);
+      }
+    }).catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const getStatusLabel = (status: User['status']) => {
     if (status === 'ACTIVE') return 'Hoạt động';
@@ -141,6 +153,13 @@ export function CustomerProfile({ user }: CustomerProfileProps) {
                   {getStatusLabel(user.status)}
                 </span>
               </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Số dư ví</label>
+              <p className="text-lg font-semibold text-foreground">
+                {Number(user.walletBalance || 0).toLocaleString('vi-VN')}₫
+              </p>
+              <p className="text-xs text-muted-foreground">Tiền hoàn đơn được cộng vào ví sau khi admin xác nhận.</p>
             </div>
           </div>
 
