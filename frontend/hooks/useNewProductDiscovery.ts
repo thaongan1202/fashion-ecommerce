@@ -1,13 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   searchProducts,
   filterProducts,
-  getFeaturedProducts,
-  getBestSellingProducts,
-  getNewArrivals,
-  getOnSaleProducts,
   compareProducts,
   type ProductCardResponse,
   type ProductSearchRequest,
@@ -51,11 +47,11 @@ interface UseProductDiscoveryReturn {
  */
 export function useProductDiscovery(): UseProductDiscoveryReturn {
   // Discovery products state
-  const [featuredProducts, setFeaturedProducts] = useState<ProductCardResponse[]>([]);
-  const [bestSellingProducts, setBestSellingProducts] = useState<ProductCardResponse[]>([]);
-  const [newArrivals, setNewArrivals] = useState<ProductCardResponse[]>([]);
-  const [onSaleProducts, setOnSaleProducts] = useState<ProductCardResponse[]>([]);
-  const [discoveryLoading, setDiscoveryLoading] = useState(false);
+  const [featuredProducts] = useState<ProductCardResponse[]>([]);
+  const [bestSellingProducts] = useState<ProductCardResponse[]>([]);
+  const [newArrivals] = useState<ProductCardResponse[]>([]);
+  const [onSaleProducts] = useState<ProductCardResponse[]>([]);
+  const [discoveryLoading] = useState(false);
   
   // Search state
   const [searchResults, setSearchResults] = useState<PageResponse<ProductCardResponse> | null>(null);
@@ -71,32 +67,6 @@ export function useProductDiscovery(): UseProductDiscoveryReturn {
   const [comparisonResults, setComparisonResults] = useState<ProductComparisonResponse | null>(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [comparisonError, setComparisonError] = useState<string | null>(null);
-
-  // Load discovery products on mount
-  useEffect(() => {
-    const loadDiscoveryProducts = async () => {
-      setDiscoveryLoading(true);
-      try {
-        const [featured, bestSelling, newArrivalsList, onSale] = await Promise.all([
-          getFeaturedProducts(8),
-          getBestSellingProducts(8), 
-          getNewArrivals(8),
-          getOnSaleProducts(8),
-        ]);
-        
-        setFeaturedProducts(featured);
-        setBestSellingProducts(bestSelling);
-        setNewArrivals(newArrivalsList);
-        setOnSaleProducts(onSale);
-      } catch (error) {
-        console.error('Failed to load discovery products:', error);
-      } finally {
-        setDiscoveryLoading(false);
-      }
-    };
-
-    loadDiscoveryProducts();
-  }, []);
 
   // Search function
   const performSearch = useCallback(async (request: ProductSearchRequest) => {

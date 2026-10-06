@@ -99,11 +99,6 @@ function ProductsPageContent() {
 
   // Use product discovery hook
   const {
-    featuredProducts,
-    bestSellingProducts,
-    newArrivals,
-    onSaleProducts,
-    discoveryLoading,
     searchResults,
     searchLoading,
     searchError,
@@ -142,21 +137,28 @@ function ProductsPageContent() {
   // Find "Điện thoại" category and set as default on initial load
   // OR perform search if keyword is provided in URL
   useEffect(() => {
-    if (!isInitialized && categories.length > 0) {
-      // If keyword is provided, perform search instead of filter
-      if (initialKeyword) {
-        const [sortBy, sortDirection] = currentSort.split(':') as [string, 'asc' | 'desc'];
-        performSearch({
-          keyword: initialKeyword,
-          sortBy,
-          sortDirection,
-          page: 0,
-          size: 20,
-        });
-        setIsInitialized(true);
-        return;
-      }
+    if (isInitialized) return;
 
+    if (initialKeyword) {
+      const [sortBy, sortDirection] = currentSort.split(':') as [string, 'asc' | 'desc'];
+      performSearch({
+        keyword: initialKeyword,
+        sortBy,
+        sortDirection,
+        page: 0,
+        size: 20,
+      });
+      setIsInitialized(true);
+      return;
+    }
+
+    if (initialCategoryId) {
+      performFilter(currentFilters);
+      setIsInitialized(true);
+      return;
+    }
+
+    if (categories.length > 0) {
       if (!initialCategoryId) {
         // Find the phone category (Điện thoại)
         const phoneCategory = categories.find(cat =>

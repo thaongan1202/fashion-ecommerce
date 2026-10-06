@@ -108,19 +108,12 @@ export default function ProductDetailPage() {
           productId
         );
 
-        const [productData, relatedData] =
-          await Promise.all([
-            productViewService.getProductById(productId),
-            productViewService.getRelatedProducts(productId, 8),
-          ]);
-
-        console.log(
-          '✅ Product data received:',
-          productData
-        );
+        const relatedPromise = productViewService
+          .getRelatedProducts(productId, 8)
+          .catch(() => [] as ProductViewResponse[]);
+        const productData = await productViewService.getProductById(productId);
 
         setProduct(productData);
-        setRelatedProducts(relatedData);
 
         // Reset khi chuyển sang sản phẩm khác
         setQuantity(1);
@@ -171,6 +164,10 @@ export default function ProductDetailPage() {
             '⚠️ No variants available for product'
           );
         }
+
+        relatedPromise
+          .then((relatedData) => setRelatedProducts(relatedData))
+          .catch(() => setRelatedProducts([]));
       } catch (err) {
         const errorMessage =
           err instanceof Error
