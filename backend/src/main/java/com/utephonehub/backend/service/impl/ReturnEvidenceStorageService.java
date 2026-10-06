@@ -20,22 +20,21 @@ public class ReturnEvidenceStorageService {
 
     private static final long MAX_FILE_SIZE = 25L * 1024L * 1024L;
     private static final Set<String> ALLOWED = Set.of(
-            "image/jpeg", "image/png", "image/webp", "image/gif",
-            "video/mp4", "video/webm", "video/quicktime");
+            "image/jpeg", "image/png", "image/webp", "image/gif");
 
     @Value("${app.return.upload-dir:uploads/returns}")
     private String uploadDirectory;
 
     public String store(Long userId, MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new BadRequestException("Ảnh hoặc video minh chứng là bắt buộc");
+            throw new BadRequestException("Hình ảnh minh chứng là bắt buộc");
         }
         if (file.getSize() > MAX_FILE_SIZE) {
             throw new BadRequestException("Minh chứng không được vượt quá 25 MB");
         }
         String contentType = file.getContentType() == null ? "" : file.getContentType().toLowerCase(Locale.ROOT);
         if (!ALLOWED.contains(contentType)) {
-            throw new BadRequestException("Chỉ chấp nhận ảnh (JPG, PNG, WEBP, GIF) hoặc video (MP4, WEBM, MOV)");
+            throw new BadRequestException("Chỉ chấp nhận ảnh JPG, PNG, WEBP hoặc GIF");
         }
 
         String extension = switch (contentType) {
@@ -43,9 +42,6 @@ public class ReturnEvidenceStorageService {
             case "image/png" -> "png";
             case "image/webp" -> "webp";
             case "image/gif" -> "gif";
-            case "video/mp4" -> "mp4";
-            case "video/webm" -> "webm";
-            case "video/quicktime" -> "mov";
             default -> "bin";
         };
 

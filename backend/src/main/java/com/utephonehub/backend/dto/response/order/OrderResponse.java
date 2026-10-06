@@ -45,7 +45,10 @@ public class OrderResponse {
     private LocalDateTime updatedAt;
     private List<OrderItemResponse> items;
     private Boolean canCancel;
+    private Boolean cancelRequested;
     private Boolean canReturn;
     private String returnStatus;
+    private String returnReason;
+    private String returnAdminNote;
 
 }

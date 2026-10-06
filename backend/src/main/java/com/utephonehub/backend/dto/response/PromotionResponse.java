@@ -13,6 +13,7 @@ import java.util.List;
 @Builder
 public class PromotionResponse {
     private String id;
+    private String code;
     private String title;
     private String description;
     private LocalDateTime effectiveDate;

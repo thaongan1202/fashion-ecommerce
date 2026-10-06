@@ -7,13 +7,14 @@
 import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, Package, Loader2, MapPin, Phone, Mail, User, CreditCard, Truck, Tag, Calendar, ArrowLeft } from 'lucide-react';
+import { Package, Loader2, MapPin, Phone, Mail, User, CreditCard, Truck, Tag, Calendar, ArrowLeft, Star } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
 import { orderAPI } from '@/lib/api';
 import { formatVietnamDateTime, canReturnOrder } from '@/lib/datetime';
 import { ReturnRequestDialog } from '@/components/features/orders/ReturnRequestDialog';
+import { ReviewOrderDialog } from '@/components/features/reviews/ReviewOrderDialog';
 import { toast } from 'sonner';
-import type { OrderResponse, OrderItem, OrderStatus } from '@/types';
+import type { Order, OrderResponse, OrderItem, OrderStatus } from '@/types';
 
 interface OrderDetailPageProps {
   params: Promise<{
@@ -25,8 +26,8 @@ interface OrderDetailPageProps {
 const statusConfig: Record<OrderStatus, { label: string; color: string; bgColor: string }> = {
   PENDING: { label: 'Chờ xác nhận', color: 'text-yellow-800', bgColor: 'bg-yellow-100' },
   CONFIRMED: { label: 'Đã xác nhận', color: 'text-blue-800', bgColor: 'bg-blue-100' },
-  SHIPPING: { label: 'Đã giao', color: 'text-purple-800', bgColor: 'bg-purple-100' },
-  DELIVERED: { label: 'Giao thành công', color: 'text-green-800', bgColor: 'bg-green-100' },
+  SHIPPING: { label: 'Đang vận chuyển', color: 'text-purple-800', bgColor: 'bg-purple-100' },
+  DELIVERED: { label: 'Đã giao', color: 'text-green-800', bgColor: 'bg-green-100' },
   CANCELLED: { label: 'Đã hủy', color: 'text-red-800', bgColor: 'bg-red-100' },
 };
 
@@ -46,6 +47,7 @@ export default function OrderDetailPage(props: OrderDetailPageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [returnOpen, setReturnOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
@@ -123,17 +125,16 @@ export default function OrderDetailPage(props: OrderDetailPageProps) {
       </Button>
 
       <div className="max-w-4xl mx-auto">
-        {/* Success Header */}
         <div className="flex items-center gap-4 mb-8">
-          <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center flex-shrink-0">
-            <CheckCircle2 className="h-10 w-10 text-green-600" />
+          <div className="w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0 bg-secondary">
+            <Package className="h-10 w-10 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold">
-              Đặt hàng thành công!
-            </h1>
+            <h1 className="text-2xl md:text-3xl font-bold">Chi tiết đơn hàng</h1>
             <p className="text-muted-foreground">
-              Cảm ơn bạn đã đặt hàng. Chúng tôi sẽ liên hệ với bạn sớm nhất.
+              {order.status === 'DELIVERED'
+                ? 'Bạn có thể đánh giá sản phẩm đã nhận.'
+                : 'Theo dõi trạng thái đơn hàng của bạn.'}
             </p>
           </div>
         </div>
@@ -151,9 +152,17 @@ export default function OrderDetailPage(props: OrderDetailPageProps) {
                     <p className="font-semibold text-lg">#{order.orderCode || order.id}</p>
                   </div>
                 </div>
-                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${statusInfo.bgColor} ${statusInfo.color}`}>
-                  {statusInfo.label}
-                </span>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${statusInfo.bgColor} ${statusInfo.color}`}>
+                    {statusInfo.label}
+                  </span>
+                  {order.status === 'DELIVERED' && (
+                    <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setReviewOpen(true)}>
+                      <Star className="h-4 w-4 text-amber-500" />
+                      Đánh giá
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {/* Order date */}
@@ -161,6 +170,21 @@ export default function OrderDetailPage(props: OrderDetailPageProps) {
                 <Calendar className="h-4 w-4" />
                 <span>Ngày đặt: {formatVietnamDateTime(order.createdAt)}</span>
               </div>
+
+              {order.cancelRequested && order.status === 'PENDING' && (
+                <p className="mb-3 text-sm font-medium text-amber-700">Đã gửi yêu cầu hủy, chờ admin xác nhận.</p>
+              )}
+              {order.returnStatus === 'PENDING' && (
+                <p className="mb-3 text-sm font-medium text-amber-700">Yêu cầu hoàn hàng đang chờ admin kiểm tra.</p>
+              )}
+              {order.returnStatus === 'APPROVED' && (
+                <p className="mb-3 text-sm font-medium text-green-700">Đã hoàn tiền vào số dư ví của bạn.</p>
+              )}
+              {order.returnStatus === 'REJECTED' && (
+                <p className="mb-3 text-sm font-medium text-red-600">
+                  Hoàn hàng bị từ chối{order.returnAdminNote ? `: ${order.returnAdminNote}` : '.'}
+                </p>
+              )}
 
               {/* Payment method */}
               <div className="flex items-center gap-2 text-sm">
@@ -330,7 +354,7 @@ export default function OrderDetailPage(props: OrderDetailPageProps) {
 
               {/* Actions */}
               <div className="mt-6 space-y-3">
-                {(order.canCancel || order.status === 'PENDING') && (
+                {order.canCancel && !order.cancelRequested && (
                   <Button
                     variant="destructive"
                     className="w-full"
@@ -339,17 +363,16 @@ export default function OrderDetailPage(props: OrderDetailPageProps) {
                       setCancelling(true);
                       try {
                         await orderAPI.cancel(order.id);
-                        toast.success('Đã hủy đơn. Tồn kho được hoàn lại.');
                         const refreshed = await orderAPI.getById(order.id);
                         if (refreshed.data) setOrder(refreshed.data);
                       } catch (err) {
-                        toast.error(err instanceof Error ? err.message : 'Không thể hủy đơn');
+                        toast.error(err instanceof Error ? err.message : 'Không thể gửi yêu cầu hủy');
                       } finally {
                         setCancelling(false);
                       }
                     }}
                   >
-                    Hủy đơn hàng
+                    Yêu cầu hủy đơn
                   </Button>
                 )}
                 {(order.canReturn || canReturnOrder(order.createdAt, order.status, order.returnStatus)) && (
@@ -375,6 +398,20 @@ export default function OrderDetailPage(props: OrderDetailPageProps) {
           </div>
         </div>
       </div>
+      {reviewOpen && (
+        <ReviewOrderDialog
+          order={{
+            ...(order as unknown as Order),
+            total: order.totalAmount,
+            items: order.items?.map((item) => ({
+              ...item,
+              price: Number(item.price),
+            })),
+          }}
+          open={reviewOpen}
+          onOpenChange={setReviewOpen}
+        />
+      )}
       <ReturnRequestDialog
         orderId={order.id}
         open={returnOpen}

@@ -43,8 +43,8 @@ public class OrderReturnServiceImpl implements IOrderReturnService {
     @Override
     @Transactional
     public OrderReturnResponse createReturn(Long userId, Long orderId, String reason, MultipartFile evidence) {
-        if (reason == null || reason.trim().length() < 10) {
-            throw new BadRequestException("Lý do hoàn hàng phải có ít nhất 10 ký tự");
+        if (reason == null || reason.trim().length() < 5) {
+            throw new BadRequestException("Vui lòng chọn hoặc nhập lý do hoàn hàng");
         }
 
         Order order = orderRepository.findByIdWithItems(orderId)

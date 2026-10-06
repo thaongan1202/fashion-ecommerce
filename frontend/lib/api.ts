@@ -1320,6 +1320,7 @@ export const dashboardAPI = {
       `/admin/dashboard/revenue-chart?period=${period}`,
       {
         method: "GET",
+        cache: "no-store",
       }
     );
   },

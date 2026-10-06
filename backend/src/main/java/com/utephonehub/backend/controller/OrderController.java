@@ -174,8 +174,8 @@ public class OrderController {
 		Long userId = securityUtils.getCurrentUserId(request);
 		orderService.cancelMyOrder(orderId, userId);
 
-		return ResponseEntity.ok(ApiResponse.success("Hủy đơn hàng thành công. Tồn kho đã được hoàn lại.",
-				"Đơn hàng đã được hủy trước khi admin xác nhận."));
+		return ResponseEntity.ok(ApiResponse.success("Đã ghi nhận yêu cầu hủy đơn",
+				"Đơn sẽ hiện Đã hủy sau khi admin xác nhận. Không gửi thông báo cho khách."));
 	}
 
 	@PostMapping(value = "/{orderId}/returns", consumes = "multipart/form-data")
@@ -254,8 +254,8 @@ public class OrderController {
         return switch (status) {
             case PENDING -> "Chờ xác nhận";
             case CONFIRMED -> "Đã xác nhận";
-            case SHIPPING -> "Đang giao hàng";
-            case DELIVERED -> "Đã giao hàng";
+            case SHIPPING -> "Đang vận chuyển";
+            case DELIVERED -> "Đã giao";
             case CANCELLED -> "Đã hủy";
         };
     }

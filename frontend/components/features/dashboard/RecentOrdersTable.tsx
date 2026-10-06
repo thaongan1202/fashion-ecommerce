@@ -29,7 +29,7 @@ const getStatusConfig = (status: OrderStatus) => {
       className: 'bg-blue-100 text-blue-800 border-blue-300',
     },
     SHIPPING: {
-      label: 'Đang giao',
+      label: 'Đang vận chuyển',
       className: 'bg-purple-100 text-purple-800 border-purple-300',
     },
     DELIVERED: {

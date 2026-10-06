@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { X, ChevronRight, Ticket, Sparkles } from 'lucide-react';
 import { promotionAPI } from '@/lib/api';
 import { formatPrice } from '@/lib/utils';
+import initPromotions from '@/lib/initPromotions';
 import type { Promotion } from '@/types/api-cart';
 import { toast } from 'sonner';
 
@@ -28,7 +29,7 @@ export function VoucherSelector({
   disabled,
 }: VoucherSelectorProps) {
   const [showVoucherList, setShowVoucherList] = useState(false);
-  const [availableVouchers, setAvailableVouchers] = useState<Promotion[]>([]);
+  const [availableVouchers, setAvailableVouchers] = useState<Promotion[]>(initPromotions);
   const [isLoading, setIsLoading] = useState(false);
   const [voucherCode, setVoucherCode] = useState("");
 
@@ -50,34 +51,50 @@ export function VoucherSelector({
 
   const lastCalculatedKeyRef = useRef<string>('');
 
-  useEffect(() => {
-    if (showVoucherList && availableVouchers.length === 0) {
-      loadAvailableVouchers();
+  const mapPromotions = (data: any[]): Promotion[] =>
+    data.map((voucher) => ({
+      ...voucher,
+      code: voucher.code || voucher.templateCode,
+      templateType: voucher.templateType || voucher.template?.type,
+      template_type: voucher.template_type || voucher.templateType || voucher.template?.type,
+      minValueToBeApplied: voucher.minValueToBeApplied ?? voucher.min_value_to_be_applied ?? undefined,
+    }));
+
+  const mergeWithDefaults = (vouchers: Promotion[]): Promotion[] => {
+    const byCode = new Map<string, Promotion>();
+    for (const voucher of initPromotions) {
+      byCode.set(String(voucher.code).toUpperCase(), voucher);
     }
-  }, [showVoucherList]);
+    for (const voucher of vouchers) {
+      const code = String(voucher.code || voucher.templateCode || '').toUpperCase();
+      if (!code) continue;
+      byCode.set(code, voucher);
+    }
+    return Array.from(byCode.values());
+  };
 
   const loadAvailableVouchers = async () => {
     setIsLoading(true);
     try {
-      const resp = await promotionAPI.getAvailablePromotions(orderTotal);
-      if (resp.success && Array.isArray(resp.data)) {
-        setAvailableVouchers(
-          resp.data.map((v: any) => ({
-            ...v,
-            // Normalize nullable values from PromotionResponse
-            minValueToBeApplied: v.minValueToBeApplied ?? undefined,
-          }))
-        );
-      }
+      const resp = await promotionAPI.getAllActivePromotions();
+      const mapped = resp.success && Array.isArray(resp.data) ? mapPromotions(resp.data) : [];
+      setAvailableVouchers(mergeWithDefaults(mapped));
+      return mapped;
     } catch (error) {
       console.error("Failed to load vouchers:", error);
-      toast.error("Không thể tải danh sách voucher");
+      setAvailableVouchers(initPromotions);
+      toast.error("Không tải được mã từ máy chủ. Đang dùng các mã giảm giá mặc định.");
+      return initPromotions;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const calculateDiscount = async (voucher: Promotion): Promise<number> => {
+  useEffect(() => {
+    loadAvailableVouchers();
+  }, []);
+
+  const calculateDiscount = async (voucher: Promotion): Promise<number | null> => {
     try {
       const promotionId = String(
         voucher.id || voucher.code || voucher.templateCode || ""
@@ -89,20 +106,18 @@ export function VoucherSelector({
       if (resp.success && typeof resp.data === "number") {
         return resp.data;
       }
-      // API trả về success=false → voucher không khả thi
       if (!resp.success && resp.message) {
         toast.error(resp.message);
       }
-      return 0;
+      return null;
     } catch (error: any) {
       console.error("Failed to calculate discount:", error);
-      // Hiển thị lỗi cụ thể từ backend (TC-M04-05: "Voucher không khả thi")
       const errorMessage =
         error?.response?.data?.message ||
         error?.message ||
         "Voucher không khả thi";
       toast.error(errorMessage);
-      return 0;
+      return null;
     }
   };
 
@@ -201,11 +216,14 @@ export function VoucherSelector({
     }
 
     const discount = await calculateDiscount(voucher);
-    if (discount > 0) {
+    if (discount === null || (voucherType === "discount" && discount <= 0)) {
+      return;
+    }
+    if (discount >= 0) {
       if (voucherType === "discount") {
         // Calculate total discount with both vouchers
         const freeshipDiscount = currentFreeshipVoucher
-          ? await calculateDiscount(currentFreeshipVoucher)
+          ? (await calculateDiscount(currentFreeshipVoucher)) ?? 0
           : 0;
         const totalDiscount = discount + freeshipDiscount;
         onApplyVoucher(voucher, currentFreeshipVoucher, totalDiscount);
@@ -217,7 +235,7 @@ export function VoucherSelector({
       } else {
         // Calculate total discount with both vouchers
         const discountAmount = currentDiscountVoucher
-          ? await calculateDiscount(currentDiscountVoucher)
+          ? (await calculateDiscount(currentDiscountVoucher)) ?? 0
           : 0;
         const totalDiscount = discountAmount + discount;
         onApplyVoucher(currentDiscountVoucher, voucher, totalDiscount);
@@ -234,18 +252,26 @@ export function VoucherSelector({
   const handleRemoveVoucher = async (voucherType: "discount" | "freeship") => {
     if (voucherType === "discount") {
       const freeshipDiscount = currentFreeshipVoucher
-        ? await calculateDiscount(currentFreeshipVoucher)
+        ? (await calculateDiscount(currentFreeshipVoucher)) ?? 0
         : 0;
       onApplyVoucher(null, currentFreeshipVoucher, freeshipDiscount);
       toast.info("Đã hủy mã giảm giá");
     } else {
       const discountAmount = currentDiscountVoucher
-        ? await calculateDiscount(currentDiscountVoucher)
+        ? (await calculateDiscount(currentDiscountVoucher)) ?? 0
         : 0;
       onApplyVoucher(currentDiscountVoucher, null, discountAmount);
       toast.info("Đã hủy mã freeship");
     }
   };
+
+  const findVoucher = (list: Promotion[], code: string) =>
+    list.find(
+      (voucher) =>
+        String(voucher.code || "").toUpperCase() === code ||
+        String(voucher.templateCode || "").toUpperCase() === code ||
+        String(voucher.id).toUpperCase() === code
+    );
 
   const handleCodeSubmit = async () => {
     const trimmed = voucherCode.trim().toUpperCase();
@@ -254,23 +280,10 @@ export function VoucherSelector({
       return;
     }
 
-    // Find voucher by code
-    let found = availableVouchers.find(
-      (v) =>
-        String(v.code || "").toUpperCase() === trimmed ||
-        String(v.templateCode || "").toUpperCase() === trimmed ||
-        String(v.id).toUpperCase() === trimmed
-    );
-
-    // If not in list, try to fetch available vouchers first
-    if (!found && availableVouchers.length === 0) {
-      await loadAvailableVouchers();
-      found = availableVouchers.find(
-        (v) =>
-          String(v.code || "").toUpperCase() === trimmed ||
-          String(v.templateCode || "").toUpperCase() === trimmed ||
-          String(v.id).toUpperCase() === trimmed
-      );
+    let found = findVoucher(availableVouchers, trimmed);
+    if (!found) {
+      const loaded = await loadAvailableVouchers();
+      found = findVoucher(loaded, trimmed);
     }
 
     if (found) {
@@ -396,6 +409,9 @@ export function VoucherSelector({
                     Áp dụng
                   </Button>
                 </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Mã có sẵn: SALE10 (giảm 10%), GIAM50K (giảm 50.000đ, đơn từ 200.000đ), FREESHIP (miễn phí vận chuyển)
+                </p>
               </div>
 
               {/* Available Vouchers by Type */}

@@ -32,14 +32,12 @@ export function OrdersTable({ orders, isAdmin = false, onViewDetail, onRefresh }
   const [cancellingId, setCancellingId] = useState<number | null>(null);
 
   const handleCancel = async (order: Order) => {
-    if (!window.confirm('Hủy đơn này? Tồn kho sẽ được hoàn lại.')) return;
     setCancellingId(order.id);
     try {
       await orderAPI.cancel(order.id);
-      toast.success('Đã hủy đơn và hoàn tồn kho');
       onRefresh?.();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Không thể hủy đơn');
+      toast.error(error instanceof Error ? error.message : 'Không thể gửi yêu cầu hủy');
     } finally {
       setCancellingId(null);
     }
@@ -103,7 +101,7 @@ export function OrdersTable({ orders, isAdmin = false, onViewDetail, onRefresh }
                       <span className={cn("px-2 py-1 rounded-full text-xs font-semibold", statusConfig.class)}>
                         {statusConfig.label}
                       </span>
-                      {!isAdmin && order.status === 'DELIVERED' && order.items?.some((item) => item.productId) && (
+                      {!isAdmin && order.status === 'DELIVERED' && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -114,7 +112,17 @@ export function OrdersTable({ orders, isAdmin = false, onViewDetail, onRefresh }
                           Đánh giá
                         </Button>
                       )}
-                      {!isAdmin && (order.canCancel || order.status === 'PENDING') && (
+                      {!isAdmin && order.cancelRequested && order.status === 'PENDING' && (
+                        <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">
+                          Đã yêu cầu hủy
+                        </span>
+                      )}
+                      {isAdmin && order.cancelRequested && order.status === 'PENDING' && (
+                        <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">
+                          Khách yêu cầu hủy
+                        </span>
+                      )}
+                      {!isAdmin && order.canCancel && !order.cancelRequested && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -123,8 +131,17 @@ export function OrdersTable({ orders, isAdmin = false, onViewDetail, onRefresh }
                           onClick={() => handleCancel(order)}
                         >
                           <Ban className="h-4 w-4" />
-                          Hủy đơn
+                          Yêu cầu hủy
                         </Button>
+                      )}
+                      {!isAdmin && order.returnStatus === 'REJECTED' && order.returnAdminNote && (
+                        <p className="w-full text-xs text-red-600">Từ chối hoàn: {order.returnAdminNote}</p>
+                      )}
+                      {!isAdmin && order.returnStatus === 'APPROVED' && (
+                        <p className="w-full text-xs text-green-700">Đã hoàn tiền vào ví</p>
+                      )}
+                      {!isAdmin && order.returnStatus === 'PENDING' && (
+                        <p className="w-full text-xs text-amber-700">Đang chờ xét duyệt hoàn hàng</p>
                       )}
                       {!isAdmin && (order.canReturn || canReturnOrder(order.createdAt, order.status, order.returnStatus)) && (
                         <Button

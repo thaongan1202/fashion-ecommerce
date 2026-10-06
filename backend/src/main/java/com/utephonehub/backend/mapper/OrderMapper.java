@@ -20,8 +20,11 @@ public interface OrderMapper {
     @Mapping(source = "promotion.template.code", target = "promotionCode")
     @Mapping(source = "items", target = "items")
     @Mapping(target = "canCancel", ignore = true)
+    @Mapping(target = "cancelRequested", ignore = true)
     @Mapping(target = "canReturn", ignore = true)
     @Mapping(target = "returnStatus", ignore = true)
+    @Mapping(target = "returnReason", ignore = true)
+    @Mapping(target = "returnAdminNote", ignore = true)
     OrderResponse toOrderResponse(Order order);
     
     /**

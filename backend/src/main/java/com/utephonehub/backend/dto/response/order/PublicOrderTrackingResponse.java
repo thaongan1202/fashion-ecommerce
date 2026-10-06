@@ -85,8 +85,8 @@ public class PublicOrderTrackingResponse {
         return switch (status) {
             case PENDING -> "Chờ xác nhận";
             case CONFIRMED -> "Đã xác nhận";
-            case SHIPPING -> "Đã giao";
-            case DELIVERED -> "Giao thành công";
+            case SHIPPING -> "Đang vận chuyển";
+            case DELIVERED -> "Đã giao";
             case CANCELLED -> "Đã hủy";
         };
     }

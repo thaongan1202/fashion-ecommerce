@@ -51,6 +51,7 @@ export function useOrders(isAdmin: boolean = false) {
               paymentMethod: item.paymentMethod,
               items: [],
               itemCount: item.itemCount,
+              cancelRequested: item.cancelRequested,
             }));
             setOrders(transformedOrders);
           } else {
@@ -79,8 +80,11 @@ export function useOrders(isAdmin: boolean = false) {
                 updatedAt: item.updatedAt,
                 items: item.items,
                 canCancel: item.canCancel,
+                cancelRequested: item.cancelRequested,
                 canReturn: item.canReturn,
                 returnStatus: item.returnStatus,
+                returnReason: item.returnReason,
+                returnAdminNote: item.returnAdminNote,
                 customer: item.recipientName,
                 total: item.totalAmount,
                 date: new Date(item.createdAt).toLocaleDateString("vi-VN"),
@@ -137,6 +141,7 @@ export function useOrders(isAdmin: boolean = false) {
                 paymentMethod: item.paymentMethod,
                 items: [],
                 itemCount: item.itemCount,
+                cancelRequested: item.cancelRequested,
               }));
             setOrders(transformedOrders);
           }
@@ -162,8 +167,11 @@ export function useOrders(isAdmin: boolean = false) {
                 updatedAt: item.updatedAt,
                 items: item.items,
                 canCancel: item.canCancel,
+                cancelRequested: item.cancelRequested,
                 canReturn: item.canReturn,
                 returnStatus: item.returnStatus,
+                returnReason: item.returnReason,
+                returnAdminNote: item.returnAdminNote,
                 customer: item.recipientName,
                 total: item.totalAmount,
                 date: new Date(item.createdAt).toLocaleDateString("vi-VN"),

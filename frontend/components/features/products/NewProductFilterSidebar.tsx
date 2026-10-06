@@ -42,6 +42,7 @@ interface NewProductFilterSidebarProps {
   autoApply?: boolean;
 }
 
+const MAX_PRICE = 2000000;
 const COLOR_OPTIONS = ['Đen', 'Trắng', 'Xanh navy', 'Be', 'Xám', 'Xanh denim'];
 const SIZE_OPTIONS = ['S', 'M', 'L', 'XL', 'XXL', '38', '39', '40', '41', '42'];
 const MATERIAL_OPTIONS = ['Cotton', 'Denim', 'Kaki', 'Linen', 'Canvas', 'Da'];
@@ -75,7 +76,8 @@ export function NewProductFilterSidebar({
   // Price range helpers - format cho slider
   const formatSliderPrice = (price: number) => {
     if (price >= 1000000) {
-      return `${(price / 1000000).toFixed(1)} triệu`;
+      const millions = price / 1000000;
+      return `${Number.isInteger(millions) ? millions : millions.toFixed(1)} triệu`;
     }
     if (price >= 1000) {
       return `${(price / 1000).toFixed(0)}K`;
@@ -84,15 +86,17 @@ export function NewProductFilterSidebar({
   };
 
   const getPriceRange = (): [number, number] => [
-    currentFilters.minPrice || 0,
-    currentFilters.maxPrice || 50000000
+    Math.min(currentFilters.minPrice || 0, MAX_PRICE),
+    Math.min(currentFilters.maxPrice || MAX_PRICE, MAX_PRICE)
   ];
 
   const setPriceRange = (range: [number, number]) => {
+    const min = Math.min(Math.max(range[0], 0), MAX_PRICE);
+    const max = Math.min(Math.max(range[1], 0), MAX_PRICE);
     onFiltersChange({
       ...currentFilters,
-      minPrice: range[0] > 0 ? range[0] : undefined,
-      maxPrice: range[1] < 50000000 ? range[1] : undefined,
+      minPrice: min > 0 ? min : undefined,
+      maxPrice: max < MAX_PRICE ? max : undefined,
     });
   };
 
@@ -314,15 +318,16 @@ export function NewProductFilterSidebar({
                 <Slider
                   value={getPriceRange()}
                   onValueChange={setPriceRange}
-                  max={50000000}
+                  max={MAX_PRICE}
                   min={0}
-                  step={1000000}
+                  step={50000}
                   className="w-full"
                 />
                 <div className="flex items-center justify-between text-sm text-muted-foreground mt-2">
                   <span>{formatSliderPrice(getPriceRange()[0])}</span>
                   <span>{formatSliderPrice(getPriceRange()[1])}</span>
                 </div>
+                <p className="text-xs text-muted-foreground">Mức giá tối đa 2.000.000đ</p>
               </div>
             </CollapsibleContent>
           </Collapsible>

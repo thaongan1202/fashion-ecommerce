@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Optional;
+
 @Repository
 public interface PromotionTemplateRepository extends JpaRepository<PromotionTemplate, String> {
     
@@ -13,6 +15,8 @@ public interface PromotionTemplateRepository extends JpaRepository<PromotionTemp
      * Check if a template with the given code already exists
      */
     boolean existsByCode(String code);
+
+    Optional<PromotionTemplate> findByCode(String code);
     
     /**
      * Check if a template with the given code exists, excluding a specific template ID

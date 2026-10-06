@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { StatsCard } from './StatsCard';
 import { RevenueChart } from './RevenueChart';
@@ -32,6 +32,8 @@ export function AdminDashboard() {
   // Revenue Chart State
   const [revenueData, setRevenueData] = useState<RevenueChartData | null>(null);
   const [revenueLoading, setRevenueLoading] = useState(true);
+  const [revenuePeriod, setRevenuePeriod] = useState<DashboardPeriod>('THIRTY_DAYS');
+  const revenueRequestId = useRef(0);
 
   // Order Status Chart State
   const [orderStatusData, setOrderStatusData] = useState<OrderStatusChartData | null>(null);
@@ -67,31 +69,25 @@ export function AdminDashboard() {
 
   // Fetch revenue chart data
   const fetchRevenueData = useCallback(async (period: DashboardPeriod = 'THIRTY_DAYS') => {
+    const requestId = ++revenueRequestId.current;
+    setRevenuePeriod(period);
+    setRevenueLoading(true);
     try {
-      setRevenueLoading(true);
-      
-      console.log('🔄 [AdminDashboard] Fetching revenue chart for period:', period);
-      
       const response = await dashboardAPI.getRevenueChart(period);
-      
-      console.log('📦 [AdminDashboard] Full API Response:', {
-        success: response.success,
-        status: response.status,
-        message: response.message,
-        timestamp: response.timestamp,
-        data: response.data
-      });
-      
+      if (requestId !== revenueRequestId.current) return;
+
       if (response.success && response.data) {
-        console.log('✅ [AdminDashboard] Revenue data loaded successfully');
         setRevenueData(response.data);
       } else {
         throw new Error(response.message || 'Invalid response');
       }
     } catch (error) {
-      console.error('❌ [AdminDashboard] Error fetching revenue chart:', error);
+      if (requestId !== revenueRequestId.current) return;
+      console.error('Error fetching revenue chart:', error);
     } finally {
-      setRevenueLoading(false);
+      if (requestId === revenueRequestId.current) {
+        setRevenueLoading(false);
+      }
     }
   }, []);
 
@@ -306,11 +302,13 @@ export function AdminDashboard() {
       </div>
 
       {/* Revenue Chart */}
-      {revenueLoading ? (
+      {!revenueData && revenueLoading ? (
         <div className="bg-card rounded-xl border border-border p-4 md:p-6 animate-pulse h-96" />
       ) : revenueData ? (
-        <RevenueChart 
-          data={revenueData} 
+        <RevenueChart
+          data={revenueData}
+          selectedPeriod={revenuePeriod}
+          loading={revenueLoading}
           onPeriodChange={fetchRevenueData}
         />
       ) : null}

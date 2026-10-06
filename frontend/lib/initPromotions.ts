@@ -1,33 +1,39 @@
-// Promotions extracted from backend/init.sql (seed data)
+// Mã giảm giá mặc định, khớp dữ liệu seed ở backend
 import type { Promotion } from '@/types/api-cart';
 
 const initPromotions: Promotion[] = [
   {
-    id: 'promo-001',
-    title: 'Giảm 10% cho khách hàng mới',
-    description: 'Áp dụng cho đơn hàng đầu tiên',
-    percent_discount: 10.0,
-    min_value_to_be_applied: 5000000.0,
+    id: 'promo-sale10',
+    code: 'SALE10',
+    title: 'Giảm 10%',
+    description: 'Giảm 10% cho mọi đơn, tối đa 200.000đ',
+    percent_discount: 10,
+    max_discount: 200000,
+    min_value_to_be_applied: 0,
     status: 'ACTIVE',
-    template_id: 'template-001',
+    template_type: 'VOUCHER',
+    templateCode: 'VOUCHER_TEMPLATE',
   },
   {
-    id: 'promo-002',
+    id: 'promo-giam50k',
+    code: 'GIAM50K',
+    title: 'Giảm 50.000đ',
+    description: 'Giảm 50.000đ cho đơn từ 200.000đ',
+    fixed_amount: 50000,
+    min_value_to_be_applied: 200000,
+    status: 'ACTIVE',
+    template_type: 'VOUCHER',
+    templateCode: 'VOUCHER_TEMPLATE',
+  },
+  {
+    id: 'promo-freeship',
+    code: 'FREESHIP',
     title: 'Miễn phí vận chuyển',
-    description: 'Miễn phí ship cho đơn từ 500K',
-    min_value_to_be_applied: 500000.0,
+    description: 'Miễn phí vận chuyển cho mọi đơn',
+    min_value_to_be_applied: 0,
     status: 'ACTIVE',
-    template_id: 'template-002',
-  },
-  {
-    id: 'promo-003',
-    title: 'Voucher 500K',
-    description: 'Giảm 500K cho đơn từ 10 triệu',
-    min_value_to_be_applied: 10000000.0,
-    // include a helper amount for fixed voucher display
-    fixed_amount: 500000,
-    status: 'ACTIVE',
-    template_id: 'template-001',
+    template_type: 'FREESHIP',
+    templateCode: 'FREESHIP_TEMPLATE',
   },
 ];
 

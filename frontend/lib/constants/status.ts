@@ -19,11 +19,11 @@ export const ORDER_STATUS: Record<OrderStatus, StatusConfig> = {
     class: 'bg-primary/15 text-primary dark:bg-primary/20',
   },
   shipped: {
-    label: 'Đã giao',
+    label: 'Đang vận chuyển',
     class: 'bg-accent text-foreground dark:bg-accent/60',
   },
   delivered: {
-    label: 'Giao thành công',
+    label: 'Đã giao',
     class: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
   },
   cancelled: {

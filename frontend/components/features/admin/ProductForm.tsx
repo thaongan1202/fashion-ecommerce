@@ -81,23 +81,23 @@ export function ProductForm({ onSuccess }: ProductFormProps) {
     if (!selectedCategory) return;
 
     const productName = randomChoice(names);
-    const price = Math.floor(randomNum(199000, 1290000, 0) / PRICE_ROUNDING_FACTOR) * PRICE_ROUNDING_FACTOR;
     const description = 'Sản phẩm thời trang dễ phối, chất liệu thoáng và phù hợp mặc hàng ngày.';
+    const variantCount = randomNum(2, 4);
+    const templates = Array.from({ length: variantCount }, (_, index) => ({
+      sku: `SKU${Date.now()}${index}`,
+      color: randomChoice(colors),
+      size: sizes[index % sizes.length],
+      price: Math.floor(randomNum(199000, 1290000, 0) / PRICE_ROUNDING_FACTOR) * PRICE_ROUNDING_FACTOR,
+      stockQuantity: randomNum(10, 100),
+      status: true,
+    }));
 
-    // Fill basic info
     setFormData({
       ...formData,
       name: productName,
       description: description,
       thumbnailUrl: 'https://via.placeholder.com/400x400.png?text=Product',
-      templates: [{
-        sku: `SKU${Date.now()}`,
-        color: randomChoice(colors),
-        size: randomChoice(sizes),
-        price: price,
-        stockQuantity: randomNum(10, 100),
-        status: true,
-      }],
+      templates,
     });
 
     const newMetadata: Record<string, string> = {
@@ -126,19 +126,35 @@ export function ProductForm({ onSuccess }: ProductFormProps) {
       return;
     }
 
-    if (!formData.templates[0].sku) {
-      toast.error('Vui lòng nhập SKU cho biến thể sản phẩm');
+    if (formData.templates.length < 1) {
+      toast.error('Phải có ít nhất 1 biến thể');
       return;
     }
-    const price = Number(formData.templates[0].price);
-    const stockQuantity = Number(formData.templates[0].stockQuantity);
-    if (!Number.isFinite(price) || price <= 0) {
-      toast.error('Đơn giá không được bằng 0 hoặc số âm');
-      return;
-    }
-    if (!Number.isFinite(stockQuantity) || stockQuantity < 1 || !Number.isInteger(stockQuantity)) {
-      toast.error('Số lượng phải lớn hơn hoặc bằng 1 và không được âm');
-      return;
+    const seenSkus = new Set<string>();
+    for (let index = 0; index < formData.templates.length; index += 1) {
+      const template = formData.templates[index];
+      const label = `Biến thể ${index + 1}`;
+      const sku = template.sku?.trim() ?? '';
+      if (!sku) {
+        toast.error(`${label}: vui lòng nhập SKU`);
+        return;
+      }
+      const skuKey = sku.toLowerCase();
+      if (seenSkus.has(skuKey)) {
+        toast.error(`SKU "${sku}" bị trùng`);
+        return;
+      }
+      seenSkus.add(skuKey);
+      const price = Number(template.price);
+      const stockQuantity = Number(template.stockQuantity);
+      if (!Number.isFinite(price) || price <= 0) {
+        toast.error(`${label}: đơn giá phải lớn hơn 0`);
+        return;
+      }
+      if (!Number.isFinite(stockQuantity) || stockQuantity < 1 || !Number.isInteger(stockQuantity)) {
+        toast.error(`${label}: số lượng phải từ 1 trở lên`);
+        return;
+      }
     }
 
     try {
@@ -155,6 +171,12 @@ export function ProductForm({ onSuccess }: ProductFormProps) {
       // Merge metadata into formData
       const submitData = {
         ...formData,
+        templates: formData.templates.map((template) => ({
+          ...template,
+          sku: template.sku.trim(),
+          color: template.color?.trim() || '',
+          size: template.size?.trim() || '',
+        })),
         metadata: Object.keys(cleanedMetadata).length > 0 ? cleanedMetadata : undefined,
       };
       
@@ -267,10 +289,34 @@ export function ProductForm({ onSuccess }: ProductFormProps) {
     loadData();
   }, []);
 
+  const emptyTemplate = () => ({
+    sku: '',
+    color: '',
+    size: '',
+    price: 0,
+    stockQuantity: 1,
+    status: true,
+  });
+
   const updateTemplate = (index: number, field: string, value: any) => {
     const newTemplates = [...formData.templates];
     newTemplates[index] = { ...newTemplates[index], [field]: value };
     setFormData({ ...formData, templates: newTemplates });
+  };
+
+  const addTemplate = () => {
+    setFormData({ ...formData, templates: [...formData.templates, emptyTemplate()] });
+  };
+
+  const removeTemplate = (index: number) => {
+    if (formData.templates.length <= 1) {
+      toast.error('Phải có ít nhất 1 biến thể');
+      return;
+    }
+    setFormData({
+      ...formData,
+      templates: formData.templates.filter((_, templateIndex) => templateIndex !== index),
+    });
   };
 
   const updateMetadata = (fieldName: string, value: any) => {
@@ -471,60 +517,79 @@ export function ProductForm({ onSuccess }: ProductFormProps) {
 
       {/* Template (Variant) */}
       <div className="space-y-4">
-        <h3 className="font-semibold text-lg">Biến thể sản phẩm (Template) *</h3>
-        <p className="text-sm text-muted-foreground">Phải có ít nhất 1 biến thể</p>
-
-        <div className="grid grid-cols-2 gap-4 p-4 border rounded-lg">
-          <div className="space-y-2">
-            <Label>SKU * (VD: AT-DEN-M)</Label>
-            <Input
-              value={formData.templates[0].sku}
-              onChange={(e) => updateTemplate(0, 'sku', e.target.value)}
-              placeholder="Mã SKU unique"
-              required
-            />
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-lg">Biến thể sản phẩm *</h3>
+            <p className="text-sm text-muted-foreground">Thêm nhiều màu, size, giá và tồn kho. Mỗi SKU là duy nhất.</p>
           </div>
-          <div className="space-y-2">
-            <Label>Màu sắc</Label>
-            <Input
-              value={formData.templates[0].color}
-              onChange={(e) => updateTemplate(0, 'color', e.target.value)}
-              placeholder="VD: Đen"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Kích thước</Label>
-            <Input
-              value={formData.templates[0].size}
-              onChange={(e) => updateTemplate(0, 'size', e.target.value)}
-              placeholder="VD: M"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Giá *</Label>
-            <Input
-              type="number"
-              min={1}
-              step={1}
-              value={formData.templates[0].price}
-              onChange={(e) => updateTemplate(0, 'price', Number(e.target.value))}
-              placeholder="27990000"
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Tồn kho *</Label>
-            <Input
-              type="number"
-              min={1}
-              step={1}
-              value={formData.templates[0].stockQuantity}
-              onChange={(e) => updateTemplate(0, 'stockQuantity', Number(e.target.value))}
-              placeholder="50"
-              required
-            />
-          </div>
+          <Button type="button" variant="outline" onClick={addTemplate}>
+            Thêm biến thể
+          </Button>
         </div>
+
+        {formData.templates.map((template, index) => (
+          <div key={index} className="space-y-4 rounded-lg border p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium">Biến thể {index + 1}</p>
+              {formData.templates.length > 1 && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => removeTemplate(index)}>
+                  Xóa
+                </Button>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>SKU * (VD: AT-DEN-M)</Label>
+                <Input
+                  value={template.sku}
+                  onChange={(e) => updateTemplate(index, 'sku', e.target.value)}
+                  placeholder="Mã SKU unique"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Màu sắc</Label>
+                <Input
+                  value={template.color}
+                  onChange={(e) => updateTemplate(index, 'color', e.target.value)}
+                  placeholder="VD: Đen"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Kích thước</Label>
+                <Input
+                  value={template.size}
+                  onChange={(e) => updateTemplate(index, 'size', e.target.value)}
+                  placeholder="VD: M"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Giá *</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={template.price}
+                  onChange={(e) => updateTemplate(index, 'price', Number(e.target.value))}
+                  placeholder="279000"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Tồn kho *</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={template.stockQuantity}
+                  onChange={(e) => updateTemplate(index, 'stockQuantity', Number(e.target.value))}
+                  placeholder="50"
+                  required
+                />
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Actions */}

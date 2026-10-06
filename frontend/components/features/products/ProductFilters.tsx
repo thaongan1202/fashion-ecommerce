@@ -47,16 +47,20 @@ const SIZE_OPTIONS = ['S', 'M', 'L', '29', '30', '38', '39', '40', 'Freesize']
 const MATERIAL_OPTIONS = ['Cotton', 'Denim', 'Linen', 'Canvas', 'Da']
 const STYLE_OPTIONS = ['Basic', 'Oversize', 'Công sở', 'Đường phố']
 
+const MAX_PRICE = 2000000
+const PRICE_STEP = 50000
+
 const PRICE_RANGES = [
   { min: 0, max: 200000, label: 'Dưới 200 nghìn' },
-  { min: 200000, max: 400000, label: '200 - 400 nghìn' },
-  { min: 400000, max: 700000, label: '400 - 700 nghìn' },
-  { min: 700000, max: undefined, label: 'Trên 700 nghìn' }
+  { min: 200000, max: 500000, label: '200 - 500 nghìn' },
+  { min: 500000, max: 1000000, label: '500 nghìn - 1 triệu' },
+  { min: 1000000, max: 2000000, label: '1 - 2 triệu' }
 ]
 
 const formatSliderPrice = (price: number): string => {
   if (price >= 1000000) {
-    return `${(price / 1000000).toFixed(0)} triệu`
+    const millions = price / 1000000
+    return `${Number.isInteger(millions) ? millions : millions.toFixed(1)} triệu`
   }
   return `${(price / 1000).toFixed(0)}K`
 }
@@ -70,8 +74,8 @@ export function ProductFilters({
   className 
 }: ProductFiltersProps) {
   const [priceRange, setPriceRange] = useState<[number, number]>([
-    filters.minPrice || 0,
-    filters.maxPrice || 100000000
+    Math.min(filters.minPrice || 0, MAX_PRICE),
+    Math.min(filters.maxPrice || MAX_PRICE, MAX_PRICE)
   ])
 
   // Handle checkbox filters
@@ -94,20 +98,23 @@ export function ProductFilters({
 
   // Handle price range
   const handlePriceRangeChange = (values: number[]) => {
-    setPriceRange([values[0], values[1]])
+    setPriceRange([
+      Math.min(Math.max(values[0], 0), MAX_PRICE),
+      Math.min(Math.max(values[1], 0), MAX_PRICE),
+    ])
   }
 
   const handlePriceRangeCommit = (values: number[]) => {
     onFilterChange({
       minPrice: values[0] > 0 ? values[0] : undefined,
-      maxPrice: values[1] < 100000000 ? values[1] : undefined
+      maxPrice: values[1] < MAX_PRICE ? values[1] : undefined
     })
   }
 
   // Quick price range selection
   const handleQuickPriceRange = (min: number | undefined, max: number | undefined) => {
     onFilterChange({ minPrice: min, maxPrice: max })
-    setPriceRange([min || 0, max || 100000000])
+    setPriceRange([min || 0, max || MAX_PRICE])
   }
 
   // Clear filter section
@@ -121,7 +128,7 @@ export function ProductFilters({
         break
       case 'price':
         onFilterChange({ minPrice: undefined, maxPrice: undefined })
-        setPriceRange([0, 100000000])
+        setPriceRange([0, MAX_PRICE])
         break
       case 'specs':
         onFilterChange({ 
@@ -340,10 +347,11 @@ export function ProductFilters({
                       onValueChange={handlePriceRangeChange}
                       onValueCommit={handlePriceRangeCommit}
                       min={0}
-                      max={100000000}
-                      step={1000000}
+                      max={MAX_PRICE}
+                      step={PRICE_STEP}
                       className="w-full"
                     />
+                    <p className="text-xs text-muted-foreground">Mức giá tối đa 2.000.000đ</p>
                   </div>
                 </div>
               </CollapsibleContent>

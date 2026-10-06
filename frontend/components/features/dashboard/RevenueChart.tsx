@@ -5,7 +5,6 @@
 
 'use client';
 
-import { useState } from 'react';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -19,8 +18,10 @@ import {
   Filler,
   ChartOptions
 } from 'chart.js';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { RevenueChartData, DashboardPeriod } from '@/types';
+import { cn } from '@/lib/utils';
 
 // Register Chart.js components
 ChartJS.register(
@@ -36,11 +37,17 @@ ChartJS.register(
 
 interface RevenueChartProps {
   data: RevenueChartData;
+  selectedPeriod: DashboardPeriod;
+  loading?: boolean;
   onPeriodChange: (period: DashboardPeriod) => void;
 }
 
-export function RevenueChart({ data, onPeriodChange }: RevenueChartProps) {
-  const [selectedPeriod, setSelectedPeriod] = useState<DashboardPeriod>('THIRTY_DAYS');
+export function RevenueChart({ data, selectedPeriod, loading = false, onPeriodChange }: RevenueChartProps) {
+  const [activePeriod, setActivePeriod] = useState<DashboardPeriod>(selectedPeriod);
+
+  useEffect(() => {
+    setActivePeriod(selectedPeriod);
+  }, [selectedPeriod]);
 
   const chartData = {
     labels: data.labels,
@@ -128,9 +135,16 @@ export function RevenueChart({ data, onPeriodChange }: RevenueChartProps) {
   };
 
   const handlePeriodChange = (period: DashboardPeriod) => {
-    setSelectedPeriod(period);
+    setActivePeriod(period);
+    if (period === selectedPeriod) return;
     onPeriodChange(period);
   };
+
+  const periodLabel = activePeriod === 'SEVEN_DAYS'
+    ? '7 ngày'
+    : activePeriod === 'THREE_MONTHS'
+      ? '3 tháng'
+      : '30 ngày';
 
   return (
     <div className="bg-card rounded-xl border border-border p-4 md:p-6">
@@ -141,42 +155,38 @@ export function RevenueChart({ data, onPeriodChange }: RevenueChartProps) {
             Biểu đồ Doanh thu
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Theo dõi xu hướng doanh thu theo thời gian
+            Đang hiển thị doanh thu {periodLabel}
           </p>
         </div>
         
         {/* Period Selector */}
         <div className="flex gap-2">
-          <Button
-            variant={selectedPeriod === 'SEVEN_DAYS' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handlePeriodChange('SEVEN_DAYS')}
-            className="text-xs"
-          >
-            7 ngày
-          </Button>
-          <Button
-            variant={selectedPeriod === 'THIRTY_DAYS' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handlePeriodChange('THIRTY_DAYS')}
-            className="text-xs"
-          >
-            30 ngày
-          </Button>
-          <Button
-            variant={selectedPeriod === 'THREE_MONTHS' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handlePeriodChange('THREE_MONTHS')}
-            className="text-xs"
-          >
-            3 tháng
-          </Button>
+          {([
+            ['SEVEN_DAYS', '7 ngày'],
+            ['THIRTY_DAYS', '30 ngày'],
+            ['THREE_MONTHS', '3 tháng'],
+          ] as const).map(([period, label]) => {
+            const selected = activePeriod === period;
+            return (
+              <Button
+                key={period}
+                type="button"
+                aria-pressed={selected}
+                variant={selected ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => handlePeriodChange(period)}
+                className={cn('text-xs', selected && 'bg-primary text-primary-foreground')}
+              >
+                {label}
+              </Button>
+            );
+          })}
         </div>
       </div>
 
       {/* Chart */}
-      <div className="h-[300px] md:h-[350px]">
-        <Line data={chartData} options={options} />
+      <div className={`relative h-[300px] md:h-[350px] ${loading ? 'opacity-60' : ''}`}>
+        <Line key={`${activePeriod}-${data.labels.length}`} data={chartData} options={options} />
       </div>
 
       {/* Summary Stats */}

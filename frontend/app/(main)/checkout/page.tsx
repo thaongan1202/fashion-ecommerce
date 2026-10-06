@@ -308,7 +308,8 @@ function CheckoutContent() {
   const [error, setError] = useState("");
   const [orderSuccess, setOrderSuccess] = useState(false); // Prevent empty cart flash
 
-  const shippingFee = getConfiguredShippingFee();
+  const baseShippingFee = getConfiguredShippingFee();
+  const shippingFee = selectedFreeshippingId ? 0 : baseShippingFee;
   const shippingUnit = "Giao hàng nhanh";
 
   // Load user profile (guest OK)

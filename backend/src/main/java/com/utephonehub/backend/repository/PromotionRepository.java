@@ -13,5 +13,9 @@ public interface PromotionRepository extends JpaRepository<Promotion, String> {
 
     Optional<Promotion> findByTemplateCode(String code);
 
+    Optional<Promotion> findByCodeIgnoreCase(String code);
+
+    boolean existsByCodeIgnoreCase(String code);
+
     List<Promotion> findByEffectiveDateBeforeAndExpirationDateAfter(LocalDateTime now1, LocalDateTime now2);
 }

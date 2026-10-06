@@ -66,6 +66,10 @@ public class Order {
     /** true sau khi thanh toán thành công đã trừ tồn kho */
     private Boolean stockDeducted;
 
+    /** Khách đã gửi yêu cầu hủy; admin mới được chuyển đơn sang đã hủy */
+    @Column(name = "cancel_requested")
+    private Boolean cancelRequested;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "promotion_id")
     private Promotion promotion;

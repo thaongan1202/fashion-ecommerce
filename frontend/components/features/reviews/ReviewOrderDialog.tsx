@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ProductReviews } from './ProductReviews';
+import { orderAPI } from '@/lib/api';
 import type { Order } from '@/types';
 
 interface ReviewOrderDialogProps {
@@ -12,13 +13,36 @@ interface ReviewOrderDialogProps {
 }
 
 export function ReviewOrderDialog({ order, open, onOpenChange }: ReviewOrderDialogProps) {
-  const items = order.items ?? [];
+  const [detail, setDetail] = useState<Order>(order);
+  const items = detail.items ?? [];
   const [selectedItemKey, setSelectedItemKey] = useState('');
+  const hasItems = (order.items?.length ?? 0) > 0;
+  const firstItemKey = String(items[0]?.id ?? items[0]?.productId ?? '');
 
   useEffect(() => {
     if (!open) return;
-    setSelectedItemKey(String(items[0]?.id ?? items[0]?.productId ?? ''));
-  }, [open, order.id]);
+    setDetail(order);
+    if (hasItems) return;
+
+    let cancelled = false;
+    orderAPI.getById(order.id).then((response) => {
+      if (cancelled || !response.success || !response.data) return;
+      setDetail({
+        ...order,
+        ...response.data,
+        items: response.data.items,
+      });
+    }).catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, order, hasItems]);
+
+  useEffect(() => {
+    if (!open) return;
+    setSelectedItemKey(firstItemKey);
+  }, [open, order.id, firstItemKey]);
 
   const selectedItem = useMemo(
     () => items.find((item, index) => String(item.id ?? item.productId ?? index) === selectedItemKey),
