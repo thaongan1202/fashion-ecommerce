@@ -210,8 +210,25 @@ CREATE TABLE IF NOT EXISTS promotions (
     max_discount DOUBLE PRECISION,
     min_value_to_be_applied DOUBLE PRECISION,
     status VARCHAR(20) NOT NULL,
+    code VARCHAR(50) UNIQUE,
     template_id VARCHAR(255) NOT NULL REFERENCES promotion_templates(id) ON DELETE RESTRICT
 );
+
+INSERT INTO promotions (
+    id, effective_date, expiration_date, title, description,
+    percent_discount, fixed_amount, max_discount, min_value_to_be_applied,
+    status, code, template_id
+) VALUES
+('promo-sale10', NOW() - INTERVAL '1 day', NOW() + INTERVAL '730 days',
+ 'Giảm 10%', 'Giảm 10% cho mọi đơn, tối đa 200.000đ',
+ 10, NULL, 200000, 0, 'ACTIVE', 'SALE10', 'template-003'),
+('promo-giam50k', NOW() - INTERVAL '1 day', NOW() + INTERVAL '730 days',
+ 'Giảm 50.000đ', 'Giảm 50.000đ cho đơn từ 200.000đ',
+ NULL, 50000, NULL, 200000, 'ACTIVE', 'GIAM50K', 'template-003'),
+('promo-freeship', NOW() - INTERVAL '1 day', NOW() + INTERVAL '730 days',
+ 'Miễn phí vận chuyển', 'Miễn phí vận chuyển cho mọi đơn',
+ NULL, NULL, NULL, 0, 'ACTIVE', 'FREESHIP', 'template-002')
+ON CONFLICT (id) DO NOTHING;
 
 -- Table: promotion_targets
 CREATE TABLE IF NOT EXISTS promotion_targets (

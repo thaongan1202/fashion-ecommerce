@@ -12,6 +12,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { adminAPI } from '@/lib/api';
 import type { BrandResponse } from '@/types';
 
+let brandsCache: BrandResponse[] | null = null;
+
 interface UseBrandsReturn {
   brands: BrandResponse[];
   loading: boolean;
@@ -20,8 +22,8 @@ interface UseBrandsReturn {
 }
 
 export function useBrands(): UseBrandsReturn {
-  const [brands, setBrands] = useState<BrandResponse[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [brands, setBrands] = useState<BrandResponse[]>(brandsCache ?? []);
+  const [loading, setLoading] = useState(!brandsCache);
   const [error, setError] = useState<string | null>(null);
 
   const fetchBrands = useCallback(async () => {
@@ -32,6 +34,7 @@ export function useBrands(): UseBrandsReturn {
       const response = await adminAPI.getAllBrands();
 
       if (response.success && response.data) {
+        brandsCache = response.data;
         setBrands(response.data);
       } else {
         throw new Error(response.message || 'Lỗi khi tải danh sách thương hiệu');
@@ -45,6 +48,11 @@ export function useBrands(): UseBrandsReturn {
   }, []);
 
   useEffect(() => {
+    if (brandsCache) {
+      setBrands(brandsCache);
+      setLoading(false);
+      return;
+    }
     fetchBrands();
   }, [fetchBrands]);
 

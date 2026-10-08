@@ -22,8 +22,8 @@ interface AdminOrderDetailModalProps {
 const STATUS_LABELS: Record<OrderStatus, string> = {
     PENDING: "Chờ xác nhận",
     CONFIRMED: "Đã xác nhận",
-    SHIPPING: "Đã giao",
-    DELIVERED: "Giao thành công",
+    SHIPPING: "Đang vận chuyển",
+    DELIVERED: "Đã giao",
     CANCELLED: "Đã hủy",
 };
 
@@ -285,6 +285,12 @@ export function AdminOrderDetailModal({ orderId, onClose, onStatusUpdate }: Admi
                                         Ghi chú đơn hàng
                                     </h3>
                                     <p className="text-sm text-amber-700">{order.note}</p>
+                                </div>
+                            )}
+
+                            {order.cancelRequested && order.status === 'PENDING' && (
+                                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                                    Khách hàng đã yêu cầu hủy đơn. Chọn Đã hủy để hủy đơn và hoàn tồn kho. Không gửi thông báo cho khách.
                                 </div>
                             )}
 

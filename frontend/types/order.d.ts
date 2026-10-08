@@ -38,8 +38,11 @@ export interface Order {
   updatedAt: string;
   items?: OrderItem[];
   canCancel?: boolean;
+  cancelRequested?: boolean;
   canReturn?: boolean;
   returnStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | null;
+  returnReason?: string | null;
+  returnAdminNote?: string | null;
   // Frontend computed fields
   customer?: string;
   total?: number;
@@ -67,6 +70,7 @@ export interface AdminOrderListResponse {
   updatedAt: string;
   itemCount: number;
   note?: string | null;
+  cancelRequested?: boolean;
 }
 
 export interface OrderResponse {
@@ -88,8 +92,11 @@ export interface OrderResponse {
   updatedAt: string;
   items?: OrderItem[];
   canCancel?: boolean;
+  cancelRequested?: boolean;
   canReturn?: boolean;
   returnStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | null;
+  returnReason?: string | null;
+  returnAdminNote?: string | null;
 }
 
 export interface OrderReturn {
@@ -206,5 +213,6 @@ export interface AdminOrderDetailResponse {
   // Admin specific fields
   availableStatusTransitions: OrderStatus[];
   adminNotes?: string;
+  cancelRequested?: boolean;
 }
 

@@ -91,6 +91,9 @@ public class AdminOrderDetailResponse {
 	@Schema(description = "Admin notes/comments", example = "Customer confirmed delivery")
 	private String adminNotes;
 
+	@Schema(description = "Customer has requested cancellation")
+	private Boolean cancelRequested;
+
 	// ✅ NESTED DTO CLASS FOR ORDER ITEMS
 	@Data
 	@Builder
@@ -153,9 +156,9 @@ public class AdminOrderDetailResponse {
 							.createdAt(item.getCreatedAt()).build();
 				}).collect(Collectors.toList()) : List.of()).createdAt(order.getCreatedAt())
 				.updatedAt(order.getUpdatedAt())
-				.availableStatusTransitions(getAvailableStatusTransitions(order.getStatus())).adminNotes("") // Can be
-																												// enhanced
-																												// later
+				.availableStatusTransitions(getAvailableStatusTransitions(order))
+				.adminNotes("")
+				.cancelRequested(Boolean.TRUE.equals(order.getCancelRequested()))
 				.build();
 	}
 
@@ -164,18 +167,21 @@ public class AdminOrderDetailResponse {
 		return switch (status) {
 		case PENDING -> "Chờ xác nhận";
 		case CONFIRMED -> "Đã xác nhận";
-		case SHIPPING -> "Đã giao";
-		case DELIVERED -> "Giao thành công";
+		case SHIPPING -> "Đang vận chuyển";
+		case DELIVERED -> "Đã giao";
 		case CANCELLED -> "Đã hủy";
 		};
 	}
 
-	private static List<OrderStatus> getAvailableStatusTransitions(OrderStatus currentStatus) {
-		return switch (currentStatus) {
-		case PENDING -> List.of(OrderStatus.CONFIRMED, OrderStatus.CANCELLED);
-		case CONFIRMED -> List.of(OrderStatus.SHIPPING, OrderStatus.CANCELLED);
+	private static List<OrderStatus> getAvailableStatusTransitions(Order order) {
+		boolean cancelRequested = Boolean.TRUE.equals(order.getCancelRequested());
+		return switch (order.getStatus()) {
+		case PENDING -> cancelRequested
+				? List.of(OrderStatus.CONFIRMED, OrderStatus.CANCELLED)
+				: List.of(OrderStatus.CONFIRMED);
+		case CONFIRMED -> List.of(OrderStatus.SHIPPING);
 		case SHIPPING -> List.of(OrderStatus.DELIVERED);
-		case DELIVERED, CANCELLED -> List.of(); // No further transitions
+		case DELIVERED, CANCELLED -> List.of();
 		};
 	}
 }

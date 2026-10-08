@@ -308,7 +308,8 @@ function CheckoutContent() {
   const [error, setError] = useState("");
   const [orderSuccess, setOrderSuccess] = useState(false); // Prevent empty cart flash
 
-  const shippingFee = getConfiguredShippingFee();
+  const baseShippingFee = getConfiguredShippingFee();
+  const shippingFee = selectedFreeshippingId ? 0 : baseShippingFee;
   const shippingUnit = "Giao hàng nhanh";
 
   // Load user profile (guest OK)
@@ -502,12 +503,7 @@ function CheckoutContent() {
       // Mark order as successful before navigation to prevent empty cart flash
       setOrderSuccess(true);
 
-      // Navigate to appropriate page
-      if (paymentMethod === "VNPAY" && orderData?.paymentUrl) {
-        window.location.href = orderData.paymentUrl;
-      } else {
-        router.push(`/orders/${orderData?.orderId || ""}`);
-      }
+      router.push(`/orders/${orderData?.orderId || ""}`);
     } catch (err: any) {
       console.error("Checkout error:", err);
       setError(err.message || "Đặt hàng thất bại. Vui lòng thử lại.");

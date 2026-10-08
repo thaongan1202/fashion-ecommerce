@@ -29,6 +29,9 @@ public class Promotion {
     @Column(name = "expiration_date", nullable = false)
     private LocalDateTime expirationDate; // Diagram: expirationDate: date
 
+    @Column(name = "code", unique = true, length = 50)
+    private String code;
+
     @Column(name = "title", nullable = false)
     private String title; // Diagram: title: string
 

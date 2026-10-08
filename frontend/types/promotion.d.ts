@@ -11,7 +11,10 @@ export interface PromotionTarget {
 
 export interface PromotionResponse {
   id: string;
+  code?: string;
   title: string;
+  fixedAmount?: number | null;
+  maxDiscount?: number | null;
   description: string;
   effectiveDate: string;
   expirationDate: string;

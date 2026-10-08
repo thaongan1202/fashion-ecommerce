@@ -158,6 +158,7 @@ public class PromotionServiceImpl implements IPromotionService {
      */
     private Promotion findPromotionOrThrow(String id) {
         return promotionRepository.findById(id)
+                .or(() -> promotionRepository.findByCodeIgnoreCase(id))
                 .orElseThrow(() -> new PromotionNotFoundException(id));
     }
 

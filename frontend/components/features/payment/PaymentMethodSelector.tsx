@@ -4,7 +4,7 @@
 
 'use client';
 
-import { Wallet, CreditCard, Building2, Check } from 'lucide-react';
+import { Wallet, Building2, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PaymentMethod } from '@/types';
 
@@ -21,12 +21,6 @@ const PAYMENT_METHODS: PaymentMethodOption[] = [
     label: 'Thanh toán khi nhận hàng',
     description: 'Thanh toán bằng tiền mặt khi nhận hàng',
     icon: Wallet,
-  },
-  {
-    value: 'VNPAY',
-    label: 'Ví điện tử VNPay',
-    description: 'Thanh toán qua cổng VNPay',
-    icon: CreditCard,
   },
   {
     value: 'BANK_TRANSFER',

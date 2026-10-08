@@ -5,8 +5,6 @@ import com.utephonehub.backend.dto.request.order.CreateOrderRequest;
 import com.utephonehub.backend.dto.request.order.OrderItemRequest;
 import com.utephonehub.backend.dto.response.order.CreateOrderResponse;
 import com.utephonehub.backend.dto.response.order.OrderResponse;
-import com.utephonehub.backend.dto.request.payment.CreatePaymentRequest;
-import com.utephonehub.backend.dto.response.payment.VNPayPaymentResponse;
 import com.utephonehub.backend.entity.Cart;
 import com.utephonehub.backend.entity.CartItem;
 import com.utephonehub.backend.entity.Order;
@@ -38,9 +36,7 @@ import com.utephonehub.backend.repository.PromotionRepository;
 import com.utephonehub.backend.repository.UserRepository;
 import com.utephonehub.backend.service.IEmailService;
 import com.utephonehub.backend.service.IOrderService;
-import com.utephonehub.backend.service.IVNPayService;
 import com.utephonehub.backend.service.InventoryService;
-import com.utephonehub.backend.util.SecurityUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -74,8 +70,6 @@ public class OrderServiceImpl implements IOrderService {
     private final OrderMapper orderMapper;
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
-    private final IVNPayService vnPayService;
-    private final SecurityUtils securityUtils;
     private final IEmailService emailService;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final InventoryService inventoryService;
@@ -116,6 +110,10 @@ public class OrderServiceImpl implements IOrderService {
     @CacheEvict(value = "cart", key = "#userId")
     public CreateOrderResponse createOrder(CreateOrderRequest request, Long userId, HttpServletRequest servletRequest) {
         log.info("Creating order for user: {}", userId);
+
+        if (request.getPaymentMethod() == PaymentMethod.VNPAY) {
+            throw new BadRequestException("Thanh toán VNPay không còn được hỗ trợ. Vui lòng chọn thanh toán khi nhận hàng hoặc chuyển khoản.");
+        }
         
         // 1. Validate user tồn tại
         User user = userRepository.findById(userId)
@@ -181,7 +179,9 @@ public class OrderServiceImpl implements IOrderService {
         
         // Xử lý promotion (DISCOUNT/VOUCHER)
         if (request.getPromotionId() != null) {
-            promotion = promotionRepository.findById(String.valueOf(request.getPromotionId()))
+            String promotionKey = String.valueOf(request.getPromotionId());
+            promotion = promotionRepository.findById(promotionKey)
+                    .or(() -> promotionRepository.findByCodeIgnoreCase(promotionKey))
                     .orElseThrow(() -> new BadRequestException("Mã khuyến mãi không tồn tại"));
             
             // Validate trạng thái hoạt động
@@ -231,7 +231,9 @@ public class OrderServiceImpl implements IOrderService {
         
         // Xử lý freeship promotion (FREESHIP)
         if (request.getFreeshippingPromotionId() != null) {
-            freeshippingPromotion = promotionRepository.findById(String.valueOf(request.getFreeshippingPromotionId()))
+            String freeshipKey = String.valueOf(request.getFreeshippingPromotionId());
+            freeshippingPromotion = promotionRepository.findById(freeshipKey)
+                    .or(() -> promotionRepository.findByCodeIgnoreCase(freeshipKey))
                     .orElseThrow(() -> new BadRequestException("Mã miễn phí vận chuyển không tồn tại"));
             
             if (freeshippingPromotion.getStatus() != EPromotionStatus.ACTIVE) {
@@ -252,6 +254,11 @@ public class OrderServiceImpl implements IOrderService {
             }
             log.info("Applied freeshipping promotion {}", freeshippingPromotion.getId());
         }
+
+        BigDecimal shippingFee = request.getShippingFee() == null ? BigDecimal.ZERO : request.getShippingFee();
+        if (freeshippingPromotion != null) {
+            shippingFee = BigDecimal.ZERO;
+        }
         
         // 6. Tạo orderCode unique
         String orderCode = generateUniqueOrderCode();
@@ -267,7 +274,7 @@ public class OrderServiceImpl implements IOrderService {
                 .recipientName(request.getRecipientName())
                 .phoneNumber(request.getPhoneNumber())
                 .shippingAddress(request.getShippingAddress())
-                .shippingFee(request.getShippingFee())
+                .shippingFee(shippingFee)
                 .shippingUnit(request.getShippingUnit())
                 .note(request.getNote())
                 .status(initialStatus)
@@ -383,38 +390,7 @@ public class OrderServiceImpl implements IOrderService {
                 .createdAt(order.getCreatedAt())
                 .build();
         
-        // 13. If payment method is VNPay, add instruction message
-        if (request.getPaymentMethod() == PaymentMethod.VNPAY) {
-            response.setMessage("Đơn hàng đã tạo. Đang chuyển hướng thanh toán VNPay...");
-            
-            // Tích hợp VNPay payment URL
-            try {
-                CreatePaymentRequest paymentRequest = CreatePaymentRequest.builder()
-                        .orderId(order.getId())
-                        .amount(totalAmount.longValue())
-                        .orderInfo("Thanh toan don hang " + orderCode)
-                        .locale("vn")
-                        .build();
-
-                // Lấy IP client phục vụ VNPay; nếu servletRequest null thì fallback về 127.0.0.1
-                String ipAddress;
-                if (servletRequest != null) {
-                    ipAddress = securityUtils.getClientIp(servletRequest);
-                } else {
-                    log.warn("HttpServletRequest is null when creating VNPay URL for order {}. Using fallback IP 127.0.0.1", orderCode);
-                    ipAddress = "127.0.0.1";
-                }
-
-                VNPayPaymentResponse paymentResponse = vnPayService.createPaymentUrl(paymentRequest, ipAddress);
-                response.setPaymentUrl(paymentResponse.getPaymentUrl());
-                log.info("Generated VNPay URL for order {}: {}", orderCode, paymentResponse.getPaymentUrl());
-            } catch (Exception e) {
-                log.error("Failed to generate VNPay URL for order {}", orderCode, e);
-                response.setMessage("Đơn hàng đã tạo nhưng lỗi tạo link thanh toán. Vui lòng thử lại trong lịch sử đơn hàng.");
-            }
-        } else {
-            response.setMessage("Đơn hàng đã được tạo thành công!");
-        }
+        response.setMessage("Đơn hàng đã được tạo thành công!");
         
         log.info("Order created successfully: {}", orderCode);
         return response;
@@ -544,7 +520,7 @@ public class OrderServiceImpl implements IOrderService {
     @Override
     @Transactional
     public void cancelMyOrder(Long orderId, Long userId) {
-        log.info("User {} attempting to cancel order {}", userId, orderId);
+        log.info("User {} requesting cancellation for order {}", userId, orderId);
         
         // 1. Tìm đơn hàng
         Order order = orderRepository.findById(orderId)
@@ -561,36 +537,20 @@ public class OrderServiceImpl implements IOrderService {
         }
         
         if (order.getStatus() != OrderStatus.PENDING) {
-            log.warn("Cannot cancel order {} with status {}", orderId, order.getStatus());
+            log.warn("Cannot request cancel for order {} with status {}", orderId, order.getStatus());
             throw new BadRequestException(
-                "Chỉ có thể hủy đơn khi đơn đang chờ admin xác nhận. Sau khi admin xác nhận thì không thể hủy."
+                "Chỉ có thể yêu cầu hủy khi đơn đang chờ admin xác nhận."
             );
         }
-        
-        // 4. Cập nhật trạng thái sang CANCELLED
-        OrderStatus oldStatus = order.getStatus();
-        order.setStatus(OrderStatus.CANCELLED);
+        if (Boolean.TRUE.equals(order.getCancelRequested())) {
+            throw new BadRequestException("Bạn đã gửi yêu cầu hủy cho đơn này");
+        }
+
+        order.setCancelRequested(true);
         order.setUpdatedAt(LocalDateTime.now());
-        
-        // 5. Lưu đơn hàng
         orderRepository.save(order);
-        
-        // 6. Ghi log lịch sử trạng thái
-        try {
-            saveOrderStatusHistory(order, OrderStatus.CANCELLED, "Khách hàng tự hủy đơn");
-        } catch (Exception e) {
-            log.warn("Failed to save order status history for order {}: {}", orderId, e.getMessage());
-        }
-        
-        if (Boolean.TRUE.equals(order.getStockDeducted())) {
-            restoreProductStock(order);
-            order.setStockDeducted(false);
-            orderRepository.save(order);
-            log.info("Product stock restored for cancelled order: {}", order.getOrderCode());
-        }
-        
-        log.info("Order {} successfully cancelled by user {}. Status changed from {} to {}", 
-                orderId, userId, oldStatus, OrderStatus.CANCELLED);
+        log.info("User {} requested cancellation for order {}. Waiting for admin, no customer notification.",
+                userId, order.getOrderCode());
     }
     
     @Override
@@ -607,7 +567,8 @@ public class OrderServiceImpl implements IOrderService {
                 return false;
             }
             
-            boolean canCancel = order.getStatus() == OrderStatus.PENDING;
+            boolean canCancel = order.getStatus() == OrderStatus.PENDING
+                    && !Boolean.TRUE.equals(order.getCancelRequested());
             
             log.info("Order {} can be cancelled: {}", orderId, canCancel);
             return canCancel;
@@ -626,8 +587,8 @@ public class OrderServiceImpl implements IOrderService {
         return switch (status) {
             case PENDING -> "Chờ xác nhận";
             case CONFIRMED -> "Đã xác nhận"; 
-            case SHIPPING -> "Đã giao";
-            case DELIVERED -> "Giao thành công";
+            case SHIPPING -> "Đang vận chuyển";
+            case DELIVERED -> "Đã giao";
             case CANCELLED -> "Đã hủy";
         };
     }
@@ -665,12 +626,16 @@ public class OrderServiceImpl implements IOrderService {
 
     private OrderResponse toCustomerOrderResponse(Order order) {
         OrderResponse response = orderMapper.toOrderResponse(order);
-        response.setCanCancel(order.getStatus() == OrderStatus.PENDING);
+        boolean cancelRequested = Boolean.TRUE.equals(order.getCancelRequested());
+        response.setCancelRequested(cancelRequested);
+        response.setCanCancel(order.getStatus() == OrderStatus.PENDING && !cancelRequested);
         OrderReturn orderReturn = orderReturnRepository.findByOrderId(order.getId()).orElse(null);
         boolean withinWindow = order.getCreatedAt() != null
                 && !order.getCreatedAt().plusDays(3).isBefore(LocalDateTime.now());
         response.setCanReturn(order.getStatus() == OrderStatus.DELIVERED && withinWindow && orderReturn == null);
         response.setReturnStatus(orderReturn == null ? null : orderReturn.getStatus().name());
+        response.setReturnReason(orderReturn == null ? null : orderReturn.getReason());
+        response.setReturnAdminNote(orderReturn == null ? null : orderReturn.getAdminNote());
         return response;
     }
 

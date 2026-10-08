@@ -12,7 +12,6 @@ import {
     ShoppingCart,
     Package,
     Menu,
-    Bell,
     FolderTree,
     Tag,
     Ticket,
@@ -32,6 +31,7 @@ import {
     ReviewManagement,
     ReturnManagement,
 } from "@/components/features/dashboard";
+import { AdminNotificationBell } from "@/components/features/dashboard/AdminNotificationBell";
 import {
     PromotionsTable,
     TemplatesTable,
@@ -60,6 +60,7 @@ export default function AdminDashboardClient() {
     const [activeTab, setActiveTab] = useState<TabType>("dashboard");
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+    const [unreadReturns, setUnreadReturns] = useState(0);
 
     const isAdmin = user?.role === "ADMIN";
     const { orders, loading: ordersLoading, refetch: refetchOrders } = useOrders(true); // true for isAdmin
@@ -75,7 +76,7 @@ export default function AdminDashboardClient() {
         { id: "templates" as TabType, label: "Templates", icon: FileText },
         { id: "users" as TabType, label: "Người dùng", icon: Users },
         { id: "reviews" as TabType, label: "Đánh giá sản phẩm", icon: Star },
-        { id: "returns" as TabType, label: "Hoàn hàng", icon: Undo2 },
+        { id: "returns" as TabType, label: "Hoàn hàng", icon: Undo2, badge: unreadReturns },
     ];
 
     useEffect(() => {
@@ -171,10 +172,10 @@ export default function AdminDashboardClient() {
                         </h2>
                     </div>
                     <div className="flex items-center gap-3">
-                        <button className="p-2 hover:bg-secondary rounded-lg relative">
-                            <Bell className="w-5 h-5 text-muted-foreground" />
-                            <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full"></span>
-                        </button>
+                        <AdminNotificationBell
+                            onOpenReturns={() => setActiveTab("returns")}
+                            onUnreadChange={setUnreadReturns}
+                        />
                         <div className="hidden sm:flex items-center gap-2 text-sm">
                             <LiveClock />
                             <span className="text-muted-foreground">Xin chào,</span>

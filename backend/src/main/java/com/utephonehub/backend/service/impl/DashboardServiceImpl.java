@@ -180,8 +180,8 @@ public class DashboardServiceImpl implements IDashboardService {
         Map<OrderStatus, String> statusLabels = Map.of(
                 OrderStatus.PENDING, "Chờ xác nhận",
                 OrderStatus.CONFIRMED, "Đã xác nhận",
-                OrderStatus.SHIPPING, "Đang giao hàng",
-                OrderStatus.DELIVERED, "Đã giao hàng",
+                OrderStatus.SHIPPING, "Đang vận chuyển",
+                OrderStatus.DELIVERED, "Đã giao",
                 OrderStatus.CANCELLED, "Đã hủy"
         );
 
@@ -338,8 +338,8 @@ public class DashboardServiceImpl implements IDashboardService {
         Map<OrderStatus, String> statusLabels = Map.of(
                 OrderStatus.PENDING, "Chờ xác nhận",
                 OrderStatus.CONFIRMED, "Đã xác nhận",
-                OrderStatus.SHIPPING, "Đang giao hàng",
-                OrderStatus.DELIVERED, "Đã giao hàng",
+                OrderStatus.SHIPPING, "Đang vận chuyển",
+                OrderStatus.DELIVERED, "Đã giao",
                 OrderStatus.CANCELLED, "Đã hủy"
         );
 

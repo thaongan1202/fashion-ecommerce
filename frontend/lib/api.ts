@@ -198,14 +198,6 @@ async function fetchAPI<T>(
   const url = `${API_BASE_URL}${normalizedEndpoint}`;
   const token = getAuthToken();
 
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`[fetchAPI] Token check:`, {
-      hasToken: !!token,
-      tokenLength: token?.length,
-      tokenPreview: token ? `${token.substring(0, 20)}...` : null,
-    });
-  }
-
   const headers = new Headers(options.headers);
   const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
 
@@ -217,37 +209,13 @@ async function fetchAPI<T>(
 
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[fetchAPI] Authorization header set`);
-    }
-  } else {
-    if (process.env.NODE_ENV === 'development') {
-      console.warn(`[fetchAPI] No token found, request will be unauthenticated`);
-    }
   }
 
   try {
-    // Log request for debugging
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[fetchAPI] ${options.method || 'GET'} ${url}`, {
-        hasToken: !!token,
-        body: isFormData
-          ? "[form-data]"
-          : options.body && typeof options.body === "string"
-            ? JSON.parse(options.body)
-            : undefined,
-      });
-    }
-
     const response = await fetchWithAuth(url, {
       ...options,
       headers,
     });
-
-    // Log response status
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[fetchAPI] Response ${response.status} ${response.statusText} for ${options.method || 'GET'} ${url}`);
-    }
 
     // Try to parse JSON, but handle cases where response might not be JSON
     let data: any;
@@ -286,17 +254,6 @@ async function fetchAPI<T>(
       error.status = response.status;
       error.data = data;
       throw error;
-    }
-
-    // Log successful response
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[fetchAPI] Success for ${options.method || 'GET'} ${url}:`, data);
-      // Check if response has success field
-      if (data && typeof data === 'object' && 'success' in data) {
-        console.log(`[fetchAPI] Response success field:`, data.success);
-      } else {
-        console.warn(`[fetchAPI] Response does not have success field`);
-      }
     }
 
     // Ensure response has success field if it's an ApiResponse
@@ -684,6 +641,30 @@ export const orderAPI = {
         method: "GET",
       }
     );
+  },
+};
+
+export interface AdminNotificationItem {
+  id: number;
+  title: string;
+  message: string;
+  type: string;
+  referenceId?: number;
+  read: boolean;
+  createdAt: string;
+}
+
+export const notificationAPI = {
+  list: async (): Promise<ApiResponse<{ unreadCount: number; items: AdminNotificationItem[] }>> => {
+    return fetchAPI<{ unreadCount: number; items: AdminNotificationItem[] }>("/admin/notifications", {
+      method: "GET",
+    });
+  },
+  markRead: async (id: number): Promise<ApiResponse<null>> => {
+    return fetchAPI<null>(`/admin/notifications/${id}/read`, { method: "POST" });
+  },
+  markAllRead: async (): Promise<ApiResponse<null>> => {
+    return fetchAPI<null>("/admin/notifications/read-all", { method: "POST" });
   },
 };
 
@@ -1320,6 +1301,7 @@ export const dashboardAPI = {
       `/admin/dashboard/revenue-chart?period=${period}`,
       {
         method: "GET",
+        cache: "no-store",
       }
     );
   },

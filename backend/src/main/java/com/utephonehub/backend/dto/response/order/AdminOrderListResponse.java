@@ -1,8 +1,8 @@
 
-package com. utephonehub.backend. dto.response.order;
+package com.utephonehub.backend.dto.response.order;
 
-import com.utephonehub. backend.entity.Order;
-import com.utephonehub.backend.enums. OrderStatus;
+import com.utephonehub.backend.entity.Order;
+import com.utephonehub.backend.enums.OrderStatus;
 import com.utephonehub.backend.enums.PaymentMethod;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
@@ -73,6 +73,9 @@ public class AdminOrderListResponse {
     
     @Schema(description = "Order note", example = "Giao hàng giờ hành chính")
     private String note;
+
+    @Schema(description = "Customer requested cancellation")
+    private Boolean cancelRequested;
     
     public static AdminOrderListResponse fromEntity(Order order) {
         return AdminOrderListResponse.builder()
@@ -94,6 +97,7 @@ public class AdminOrderListResponse {
                 .updatedAt(order.getUpdatedAt())
                 .itemCount(order.getItems() != null ? order.getItems().size() : 0)
                 .note(order.getNote())
+                .cancelRequested(Boolean.TRUE.equals(order.getCancelRequested()))
                 .build();
     }
     
@@ -101,8 +105,8 @@ public class AdminOrderListResponse {
         return switch (status) {
             case PENDING -> "Chờ xác nhận";
             case CONFIRMED -> "Đã xác nhận";
-            case SHIPPING -> "Đã giao";
-            case DELIVERED -> "Giao thành công";
+            case SHIPPING -> "Đang vận chuyển";
+            case DELIVERED -> "Đã giao";
             case CANCELLED -> "Đã hủy";
         };
     }

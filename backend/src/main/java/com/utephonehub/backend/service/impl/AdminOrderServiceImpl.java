@@ -132,10 +132,12 @@ public class AdminOrderServiceImpl implements IAdminOrderService {
 		});
 
 		// Validate status transition
-		if (!isValidStatusTransition(order.getStatus(), newStatus)) {
+		if (!isValidStatusTransition(order, newStatus)) {
 			log.warn("Invalid status transition from {} to {} for order {}", order.getStatus(), newStatus, orderId);
 			throw new BadRequestException(
-					String.format("Cannot change order status from %s to %s", order.getStatus(), newStatus));
+					newStatus == OrderStatus.CANCELLED
+							? "Chỉ được hủy đơn khi khách hàng đã gửi yêu cầu hủy"
+							: String.format("Không thể chuyển trạng thái từ %s sang %s", order.getStatus(), newStatus));
 		}
 
 		OrderStatus oldStatus = order.getStatus();
@@ -273,7 +275,7 @@ public class AdminOrderServiceImpl implements IAdminOrderService {
 		Order order = orderRepository.findById(orderId)
 				.orElseThrow(() -> new ResourceNotFoundException("Order not found with ID: " + orderId));
 
-		return getValidNextStatuses(order.getStatus());
+		return getValidNextStatuses(order);
 	}
 
 	@Override
@@ -284,7 +286,7 @@ public class AdminOrderServiceImpl implements IAdminOrderService {
 		List<Order> orders = orderRepository.findAllById(orderIds);
 
 		for (Order order : orders) {
-			if (isValidStatusTransition(order.getStatus(), newStatus)) {
+			if (isValidStatusTransition(order, newStatus)) {
 				OrderStatus oldStatus = order.getStatus();
 				order.setStatus(newStatus);
 				order.setUpdatedAt(LocalDateTime.now());
@@ -342,17 +344,19 @@ public class AdminOrderServiceImpl implements IAdminOrderService {
 	// HELPER METHODS
 	// ========================================
 
-	private boolean isValidStatusTransition(OrderStatus currentStatus, OrderStatus newStatus) {
-		List<OrderStatus> validTransitions = getValidNextStatuses(currentStatus);
-		return validTransitions.contains(newStatus);
+	private boolean isValidStatusTransition(Order order, OrderStatus newStatus) {
+		return getValidNextStatuses(order).contains(newStatus);
 	}
 
-	private List<OrderStatus> getValidNextStatuses(OrderStatus currentStatus) {
-		return switch (currentStatus) {
-		case PENDING -> List.of(OrderStatus.CONFIRMED, OrderStatus.CANCELLED);
+	private List<OrderStatus> getValidNextStatuses(Order order) {
+		boolean cancelRequested = Boolean.TRUE.equals(order.getCancelRequested());
+		return switch (order.getStatus()) {
+		case PENDING -> cancelRequested
+				? List.of(OrderStatus.CONFIRMED, OrderStatus.CANCELLED)
+				: List.of(OrderStatus.CONFIRMED);
 		case CONFIRMED -> List.of(OrderStatus.SHIPPING);
 		case SHIPPING -> List.of(OrderStatus.DELIVERED);
-		case DELIVERED, CANCELLED -> List.of(); // No further transitions
+		case DELIVERED, CANCELLED -> List.of();
 		};
 	}
 }

@@ -20,6 +20,7 @@ export function useCartSync() {
   } = useCartStore();
 
   const wasAuthenticatedRef = useRef(isAuthenticated);
+  const syncedUserIdRef = useRef<number | null>(null);
 
   // Use sessionStorage to persist merge status across page reloads
   const getMergeStatus = useCallback(() => {
@@ -238,34 +239,27 @@ export function useCartSync() {
       if (user.role === "ADMIN") {
         clearCart();
         clearGuestCartId();
+        wasAuthenticatedRef.current = true;
         return;
       }
-      
+
+      // Sync once per user. Depending on `items` retriggers this effect after
+      // setItems and keeps refetching the cart on every page.
+      if (syncedUserIdRef.current === user.id) {
+        wasAuthenticatedRef.current = true;
+        return;
+      }
+      syncedUserIdRef.current = user.id;
+
       if (!alreadyMerged) {
-        // First time login in this session - check and merge
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[useCartSync] First login, checking and merging cart');
-        }
         setMergeStatus(true);
         checkAndMergeCart();
       } else {
-        // Already merged, but ensure cart is synced from backend
-        // This handles case where user navigates to cart page after login
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[useCartSync] Already merged, syncing cart from backend');
-        }
-        
-        // Fetch and sync cart from backend (without merge)
         (async () => {
           try {
             const resp = await cartAPI.getCurrentCart();
             if (resp?.success && resp.data && Array.isArray(resp.data.items)) {
-              const mapped = mapBackendCartItems(resp.data.items);
-              setItems(mapped);
-              
-              if (process.env.NODE_ENV === 'development') {
-                console.log('[useCartSync] Synced cart items:', mapped);
-              }
+              setItems(mapBackendCartItems(resp.data.items));
             }
           } catch (e) {
             console.error('[useCartSync] Failed to sync cart:', e);
@@ -273,14 +267,13 @@ export function useCartSync() {
         })();
       }
     } else if (!isAuthenticated) {
+      syncedUserIdRef.current = null;
       // IMPORTANT: Do NOT clear the cart on every unauthenticated render.
       // Only clear when transitioning from authenticated -> unauthenticated (logout).
       if (wasAuthenticatedRef.current) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[useCartSync] User logged out, clearing cart');
-        }
         setMergeStatus(false);
-        if ((Array.isArray(items) && items.length > 0) || guestCartId) {
+        const { items: currentItems, guestCartId: currentGuestId } = useCartStore.getState();
+        if ((Array.isArray(currentItems) && currentItems.length > 0) || currentGuestId) {
           clearCart();
         }
       } else if (alreadyMerged) {
@@ -297,8 +290,6 @@ export function useCartSync() {
     setMergeStatus,
     clearCart,
     checkAndMergeCart,
-    items,
-    guestCartId,
     clearGuestCartId,
     setItems,
   ]);

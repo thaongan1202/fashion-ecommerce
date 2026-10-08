@@ -30,7 +30,7 @@ export function ReturnManagement() {
   const [items, setItems] = useState<OrderReturn[]>([]);
   const [stats, setStats] = useState<ReturnStatistics | null>(null);
   const [loading, setLoading] = useState(true);
-  const [note, setNote] = useState('');
+  const [notes, setNotes] = useState<Record<number, string>>({});
   const [actingId, setActingId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
@@ -57,7 +57,7 @@ export function ReturnManagement() {
     setActingId(id);
     try {
       await returnAPI.approve(id);
-      toast.success('Đã xác nhận hoàn và hoàn tiền vào ví');
+      toast.success('Đã xác nhận hoàn và hoàn tiền vào ví mặc định của khách');
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Không thể xác nhận hoàn');
@@ -67,15 +67,16 @@ export function ReturnManagement() {
   };
 
   const reject = async (id: number) => {
-    if (note.trim().length < 5) {
-      toast.error('Nhập lý do từ chối trước khi từ chối yêu cầu');
+    const reason = (notes[id] || '').trim();
+    if (reason.length < 5) {
+      toast.error('Nhập lý do từ chối (ít nhất 5 ký tự) để khách hàng thấy');
       return;
     }
     setActingId(id);
     try {
-      await returnAPI.reject(id, note.trim());
+      await returnAPI.reject(id, reason);
       toast.success('Đã từ chối yêu cầu hoàn');
-      setNote('');
+      setNotes((current) => ({ ...current, [id]: '' }));
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Không thể từ chối');
@@ -110,16 +111,6 @@ export function ReturnManagement() {
         ))}
       </div>
 
-      <div className="rounded-xl border bg-card p-4">
-        <label className="text-sm font-medium">Lý do từ chối (dùng khi bấm Từ chối)</label>
-        <textarea
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
-          className="mt-2 w-full rounded-lg border bg-background p-3 text-sm"
-          rows={2}
-        />
-      </div>
-
       {loading ? (
         <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground">Đang tải...</div>
       ) : items.length === 0 ? (
@@ -152,13 +143,25 @@ export function ReturnManagement() {
                   )}
                 </div>
                 {item.status === 'PENDING' && (
-                  <div className="mt-3 flex gap-2">
-                    <Button size="sm" disabled={actingId === item.id} onClick={() => approve(item.id)}>
-                      Xác nhận hoàn
-                    </Button>
-                    <Button size="sm" variant="outline" disabled={actingId === item.id} onClick={() => reject(item.id)}>
-                      Từ chối
-                    </Button>
+                  <div className="mt-3 space-y-2">
+                    <label className="text-sm font-medium" htmlFor={`reject-note-${item.id}`}>
+                      Lý do từ chối (hiện cho khách nếu từ chối)
+                    </label>
+                    <textarea
+                      id={`reject-note-${item.id}`}
+                      value={notes[item.id] || ''}
+                      onChange={(event) => setNotes((current) => ({ ...current, [item.id]: event.target.value }))}
+                      className="w-full rounded-lg border bg-background p-3 text-sm"
+                      rows={2}
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" disabled={actingId === item.id} onClick={() => approve(item.id)}>
+                        Xác nhận hoàn vào ví
+                      </Button>
+                      <Button size="sm" variant="outline" disabled={actingId === item.id} onClick={() => reject(item.id)}>
+                        Từ chối
+                      </Button>
+                    </div>
                   </div>
                 )}
               </article>
